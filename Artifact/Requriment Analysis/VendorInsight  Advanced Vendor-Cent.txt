@@ -1,0 +1,20 @@
+VendorInsight : Advanced Vendor-Centric Analytics and Recommendations (WORKING TITLE)
+
+(Working) Introduction : This project is about an web application focused on creating advanced analytics on Sales optimization and Recommendations for sales in an online E-commerce Platform. This project is going to build a multi-vendor e-commerce platform with a particular focus on the AI powered features such as Recommender system using Sentiment analysis of Reviews and other features, and also Predictive Analytics for Vendor Sales Optimization. 
+
+(Working) Problems the project is trying to fix:
+- The lack of intuitve data driven tools for vendors that provides insightful analytics and accurate sales predictions. 
+- The low effectivenes to harness customer feedback and sentiment to generate personalized suggestions
+- The lack of integration of platforms with management solutions for vendors with analytical tools leading to operational inefficiencies. 
+
+(Working) Core Features:
+- Vendor Sales Analytics and Predictions
+- Personalized Recommendations
+- Multi-Vendor Management
+
+For Model:
+
+For the web applications : Django
+for the recommendation algo: Content-based Filtering along with NLP techniques for Sentiment analysis of the reviews,
+for the sales forecasting: Regression Models such as random forest
+for the sales analytics: Clustring algorithms
