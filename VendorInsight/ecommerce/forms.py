@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
-from .models import UserProfile
+from .models import UserProfile, Product, Category, Inventory, Vendor
 
 
 class UserRegisterForm(UserCreationForm):
@@ -25,3 +25,23 @@ class UserRegisterForm(UserCreationForm):
                 user=user, is_vendor=self.cleaned_data['is_vendor'])
             user_profile.save()
         return user
+
+
+class ProductForm(forms.ModelForm):
+    class Meta:
+        model = Product
+        fields = ['name', 'description', 'price',
+                  'inventory', 'discount', 'categories']
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
+        super(ProductForm, self).__init__(*args, **kwargs)
+        self.fields['categories'].widget = forms.CheckboxSelectMultiple()
+        self.fields['categories'].queryset = Category.objects.all()
+
+    def save(self, commit=True):
+        product = super().save(commit=False)
+        if commit:
+            product.save()
+            self.save_m2m()  # Save many-to-many data for the form.
+        return product

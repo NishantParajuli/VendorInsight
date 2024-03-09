@@ -29,6 +29,8 @@ class UserProfile(models.Model):
 
 
 class Vendor(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='vendor')
     name = models.CharField(max_length=100)
     contact_information = models.CharField(max_length=100)
     address = models.CharField(max_length=100)

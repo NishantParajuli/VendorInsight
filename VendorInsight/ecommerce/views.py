@@ -1,7 +1,7 @@
 from django.shortcuts import render,  redirect
 from django.contrib.auth import login, authenticate
 from django.contrib.auth.decorators import login_required
-from .forms import UserRegisterForm
+from .forms import UserRegisterForm, ProductForm
 from django.contrib import messages
 from .models import UserProfile
 from django.http import HttpResponseForbidden
@@ -51,3 +51,17 @@ def home(request):
 def vendor_home(request):
     # Your vendor-specific view logic
     return render(request, 'ecommerce/vendor_page.html')
+
+
+@login_required
+@vendor_required
+def add_product(request):
+    if request.method == 'POST':
+        form = ProductForm(request.POST, request=request)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Product added successfully!')
+            return redirect('vendor_home')
+    else:
+        form = ProductForm(request=request)
+    return render(request, 'ecommerce/add_product.html', {'form': form})
