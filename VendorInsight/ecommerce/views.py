@@ -6,8 +6,21 @@ from django.contrib import messages
 from .models import UserProfile, Product, Category
 from django.http import HttpResponseForbidden
 from django.db.models import Q
+from django.contrib.auth.views import LoginView
+from django.utils.decorators import method_decorator
 
 
+def logout_required(function):
+    def wrap(request, *args, **kwargs):
+        if request.user.is_authenticated:
+            # Redirect to homepage if user is logged in
+            return redirect('home')
+        else:
+            return function(request, *args, **kwargs)
+    return wrap
+
+
+@logout_required
 def register(request):
     if request.method == 'POST':
         form = UserRegisterForm(request.POST)
@@ -27,6 +40,11 @@ def register(request):
     else:
         form = UserRegisterForm()
     return render(request, 'ecommerce/register.html', {'form': form})
+
+
+@method_decorator(logout_required, name='dispatch')
+class CustomLoginView(LoginView):
+    template_name = 'ecommerce/login.html'
 
 
 def vendor_required(func):
