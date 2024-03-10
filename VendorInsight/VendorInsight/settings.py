@@ -31,7 +31,6 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
-    'dashboard',
     'ecommerce',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -131,7 +130,7 @@ STATICFILES_DIRS = [
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 MEDIA_ROOT = BASE_DIR / "uploads"
-MEDIA_URL = "/files/"
+MEDIA_URL = "/uploads/"
 
 LOGIN_REDIRECT_URL = 'home'  # or wherever you want users to go after logging in
 LOGOUT_REDIRECT_URL = 'login'  # or your site's login page

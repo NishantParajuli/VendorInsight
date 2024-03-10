@@ -3,8 +3,9 @@ from django.contrib.auth import login, authenticate
 from django.contrib.auth.decorators import login_required
 from .forms import UserRegisterForm, ProductForm
 from django.contrib import messages
-from .models import UserProfile
+from .models import UserProfile, Product, Category
 from django.http import HttpResponseForbidden
+from django.db.models import Q
 
 
 def register(request):
@@ -43,7 +44,35 @@ def vendor_required(func):
 
 @login_required  # This is a decorator that will redirect to the login page if the user is not logged in
 def home(request):
-    return render(request, 'ecommerce/home.html')
+    products = Product.objects.all()
+    categories = Category.objects.all()
+
+    # Search
+    search_query = request.GET.get('search', '')
+    if search_query:
+        products = products.filter(
+            Q(name__icontains=search_query) | Q(
+                description__icontains=search_query)
+        )
+
+    # Filter
+    category_query = request.GET.get('category', '')
+    if category_query:
+        products = products.filter(categories__name=category_query)
+
+    # Sort
+    sort_by = request.GET.get('sort_by', '')
+    if sort_by:
+        if sort_by == 'price_asc':
+            products = products.order_by('price')
+        elif sort_by == 'price_desc':
+            products = products.order_by('-price')
+
+    context = {
+        'products': products,
+        'categories': categories,
+    }
+    return render(request, 'ecommerce/home.html', context)
 
 
 @login_required
