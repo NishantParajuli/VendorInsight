@@ -1,0 +1,24 @@
+{% block content %}
+<h2>{{ product.name }}</h2>
+<!-- Display product details -->
+<p>{{ product.description }}</p>
+<p>Price: ${{ product.price }}</p>
+<!-- Display reviews -->
+<h3>Reviews</h3>
+{% for review in reviews %}
+    <p>
+        <strong>Reviewer:</strong> {{ review.user.first_name }}<br>
+        <strong>Rating:</strong> {{ review.rating }}<br>
+        <strong>Comment:</strong> {{ review.comment }}
+    </p>
+{% empty %}
+    <p>No reviews yet.</p>
+{% endfor %}
+<!-- Add a review form -->
+<h4>Add a Review</h4>
+<form method="post">
+    {% csrf_token %}
+    {{ review_form.as_p }}
+    <button type="submit">Submit Review</button>
+</form>
+{% endblock %}

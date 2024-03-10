@@ -88,7 +88,8 @@ class ProductReview(models.Model):
         validators=[MinValueValidator(1), MaxValueValidator(5)])
     comment = models.TextField()
     review_date = models.DateTimeField(auto_now_add=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL,
+                             on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
 
 
@@ -96,7 +97,8 @@ class Order(models.Model):
     order_date = models.DateTimeField(auto_now_add=True)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(max_length=50)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL,
+                             on_delete=models.CASCADE)
 
 
 class OrderDetails(models.Model):
@@ -109,4 +111,5 @@ class OrderDetails(models.Model):
 class Wishlist(models.Model):
     date_added = models.DateTimeField(auto_now_add=True)
     products = models.ManyToManyField(Product, related_name='wishlists')
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL,
+                             on_delete=models.CASCADE)

@@ -1,9 +1,9 @@
-from django.shortcuts import render,  redirect
+from django.shortcuts import render,  redirect, get_object_or_404
 from django.contrib.auth import login, authenticate
 from django.contrib.auth.decorators import login_required
-from .forms import UserRegisterForm, ProductForm
+from .forms import UserRegisterForm, ProductForm, ReviewForm
 from django.contrib import messages
-from .models import UserProfile, Product, Category
+from .models import UserProfile, Product, Category, ProductReview
 from django.http import HttpResponseForbidden
 from django.db.models import Q
 from django.contrib.auth.views import LoginView
@@ -112,3 +112,28 @@ def add_product(request):
     else:
         form = ProductForm(user=request.user)
     return render(request, 'ecommerce/add_product.html', {'form': form})
+
+
+@login_required
+def product_detail(request, product_id):
+    product = get_object_or_404(Product, pk=product_id)
+    reviews = ProductReview.objects.filter(product=product)
+
+    if request.method == 'POST':
+        review_form = ReviewForm(request.POST)
+        if review_form.is_valid():
+            new_review = review_form.save(commit=False)
+            new_review.product = product
+            new_review.user = request.user
+            new_review.save()
+            messages.success(request, 'Review added successfully!')
+            return redirect('product_detail', product_id=product.id)
+    else:
+        review_form = ReviewForm()
+
+    context = {
+        'product': product,
+        'reviews': reviews,
+        'review_form': review_form,
+    }
+    return render(request, 'ecommerce/product_detail.html', context)
