@@ -9,7 +9,7 @@
     {% block css_files %}{% endblock css_files %}
 </head>
 <body>
-    {% if user.is_authenticated %}
+{% if user.is_authenticated %}
   <form action="{% url 'logout' %}" method="post">
     {% csrf_token %}
     <button type="submit">Logout</button>
@@ -17,6 +17,8 @@
 {% else %}
   <a href="{% url 'login' %}">Login</a>
 {% endif %}
+
+
 
 </body>
 </html>

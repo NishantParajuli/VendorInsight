@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
-from .models import UserProfile, Product, Category, Inventory, Discount
+from .models import UserProfile, Product, Category, Inventory, Discount, ProductImage
 
 
 class UserRegisterForm(UserCreationForm):
@@ -43,6 +43,10 @@ class ProductForm(forms.ModelForm):
     end_date = forms.DateTimeField(label="Discount End Date", required=False, widget=forms.widgets.DateTimeInput(
         attrs={'type': 'datetime-local'}), input_formats=['%Y-%m-%dT%H:%M'])
 
+    # Image field
+    images = forms.FileField(
+        required=False, widget=forms.ClearableFileInput(attrs={'multiple': True}))
+
     class Meta:
         model = Product
         fields = ['name', 'description', 'price', 'categories']
@@ -80,9 +84,14 @@ class ProductForm(forms.ModelForm):
                 )
                 discount.save()
 
-            product.inventory = inventory
-            product.discount = discount
-            product.save()
+                product.inventory = inventory
+                product.discount = discount
+                product.save()
 
-            self.save_m2m()  # Save many-to-many data for the form.
+                self.save_m2m()  # Save many-to-many data for the form.
+
+                if 'images' in self.files:
+                    for image in self.files.getlist('images'):
+                        ProductImage.objects.create(
+                            product=product, image=image)
         return product

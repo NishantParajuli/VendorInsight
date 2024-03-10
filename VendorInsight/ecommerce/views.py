@@ -57,7 +57,7 @@ def vendor_home(request):
 @vendor_required
 def add_product(request):
     if request.method == 'POST':
-        form = ProductForm(request.POST, user=request.user)
+        form = ProductForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
             form.save()
             messages.success(request, 'Product added successfully!')

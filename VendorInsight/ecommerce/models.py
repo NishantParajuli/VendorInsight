@@ -45,7 +45,7 @@ class Product(models.Model):
 
 
 class ProductImage(models.Model):
-    image_url = models.URLField()
+    image = models.ImageField(upload_to='product_images/')
     description = models.TextField(blank=True)
     upload_date = models.DateTimeField(auto_now_add=True)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
