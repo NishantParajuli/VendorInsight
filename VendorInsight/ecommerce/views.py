@@ -57,11 +57,11 @@ def vendor_home(request):
 @vendor_required
 def add_product(request):
     if request.method == 'POST':
-        form = ProductForm(request.POST, request=request)
+        form = ProductForm(request.POST, user=request.user)
         if form.is_valid():
             form.save()
             messages.success(request, 'Product added successfully!')
             return redirect('vendor_home')
     else:
-        form = ProductForm(request=request)
+        form = ProductForm(user=request.user)
     return render(request, 'ecommerce/add_product.html', {'form': form})

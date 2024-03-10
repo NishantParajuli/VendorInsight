@@ -1,6 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.conf import settings
+from django.utils.translation import gettext_lazy as _
 # Create your models here.
 
 
@@ -28,18 +29,6 @@ class UserProfile(models.Model):
         return self.user.username
 
 
-class Vendor(models.Model):
-    user = models.OneToOneField(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='vendor')
-    name = models.CharField(max_length=100)
-    contact_information = models.CharField(max_length=100)
-    address = models.CharField(max_length=100)
-    registration_date = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.name
-
-
 class Product(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField()
@@ -47,7 +36,8 @@ class Product(models.Model):
     inventory = models.ForeignKey('Inventory', on_delete=models.CASCADE)
     discount = models.ForeignKey(
         'Discount', on_delete=models.SET_NULL, null=True, blank=True)
-    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL,
+                             on_delete=models.CASCADE, related_name='products')
     categories = models.ManyToManyField('Category', related_name='products')
 
     def __str__(self):
@@ -71,7 +61,15 @@ class Inventory(models.Model):
 
 
 class Discount(models.Model):
-    discount_type = models.CharField(max_length=50)
+    class DiscountType(models.TextChoices):
+        PERCENTAGE = 'Percentage', _('Percentage')
+        FIXED = 'Fixed', _('Fixed Value')
+
+    discount_type = models.CharField(
+        max_length=50,
+        choices=DiscountType.choices,
+        default=DiscountType.FIXED
+    )
     discount_value = models.DecimalField(max_digits=5, decimal_places=2)
     start_date = models.DateTimeField()
     end_date = models.DateTimeField()
