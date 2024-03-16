@@ -3,7 +3,7 @@ from django.contrib.auth import login, authenticate
 from django.contrib.auth.decorators import login_required
 from .forms import UserRegisterForm, ProductForm, ReviewForm
 from django.contrib import messages
-from .models import UserProfile, Product, Category, ProductReview
+from .models import UserProfile, Product, Category, ProductReview, Cart, CartItem, Wishlist, Order, OrderDetails
 from django.http import HttpResponseForbidden
 from django.db.models import Q
 from django.contrib.auth.views import LoginView
@@ -137,3 +137,59 @@ def product_detail(request, product_id):
         'review_form': review_form,
     }
     return render(request, 'ecommerce/product_detail.html', context)
+
+
+@login_required
+def add_to_cart(request, product_id):
+    product = get_object_or_404(Product, pk=product_id)
+    quantity = int(request.POST.get('quantity', 1))
+
+    cart, _ = Cart.objects.get_or_create(user=request.user)
+    cart_item, created = CartItem.objects.get_or_create(
+        cart=cart, product=product)
+
+    if created:
+        cart_item.quantity = quantity
+    else:
+        cart_item.quantity += quantity
+    cart_item.save()
+
+    product.inventory.current_stock -= quantity
+    product.inventory.save()
+
+    messages.success(request, 'Product added to cart!')
+    return redirect('product_detail', product_id=product.id)
+
+
+@login_required
+def add_to_wishlist(request, product_id):
+    product = get_object_or_404(Product, pk=product_id)
+    wishlist, _ = Wishlist.objects.get_or_create(user=request.user)
+    wishlist.products.add(product)
+    messages.success(request, 'Product added to wishlist!')
+    return redirect('product_detail', product_id=product.id)
+
+
+@login_required
+def cart(request):
+    cart = Cart.objects.filter(user=request.user).first()
+    cart_items = CartItem.objects.filter(cart=cart)
+    total_price = sum(item.product.price *
+                      item.quantity for item in cart_items)
+
+    if request.method == 'POST':
+        # Process the order
+        order = Order.objects.create(
+            user=request.user, total_amount=total_price)
+        for item in cart_items:
+            OrderDetails.objects.create(
+                order=order, product=item.product, quantity=item.quantity, price=item.product.price)
+        cart_items.delete()
+        messages.success(request, 'Order placed successfully!')
+        return redirect('home')
+
+    context = {
+        'cart_items': cart_items,
+        'total_price': total_price,
+    }
+    return render(request, 'ecommerce/cart.html', context)
