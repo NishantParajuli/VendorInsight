@@ -39,6 +39,7 @@ class Product(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL,
                              on_delete=models.CASCADE, related_name='products')
     categories = models.ManyToManyField('Category', related_name='products')
+    total_views = models.PositiveIntegerField(default=0)
 
     def __str__(self):
         return self.name

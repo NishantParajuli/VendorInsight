@@ -1,4 +1,11 @@
 {% block content %}
 <h1>Welcome, Vendor!</h1>
 <p>This is the vendor-only page.</p>
+<h2>Vendor Statistics</h2>
+<ul>
+    <li>Total Sales: {{ total_sales }}</li>
+    <li>Total Orders: {{ total_orders }}</li>
+    <li>Total Views: {{ total_views }}</li>
+    <li>Conversion Rate: {{ conversion_rate }}%</li>
+</ul>
 {% endblock %}

@@ -95,13 +95,6 @@ def home(request):
 
 @login_required
 @vendor_required
-def vendor_home(request):
-    # Your vendor-specific view logic
-    return render(request, 'ecommerce/vendor_page.html')
-
-
-@login_required
-@vendor_required
 def add_product(request):
     if request.method == 'POST':
         form = ProductForm(request.POST, request.FILES, user=request.user)
@@ -119,6 +112,8 @@ def product_detail(request, product_id):
     product = get_object_or_404(Product, pk=product_id)
     reviews = ProductReview.objects.filter(product=product)
 
+    product = get_object_or_404(Product, pk=product_id)
+
     if request.method == 'POST':
         review_form = ReviewForm(request.POST)
         if review_form.is_valid():
@@ -130,6 +125,9 @@ def product_detail(request, product_id):
             return redirect('product_detail', product_id=product.id)
     else:
         review_form = ReviewForm()
+
+    product.total_views += 1
+    product.save()
 
     context = {
         'product': product,
@@ -193,3 +191,49 @@ def cart(request):
         'total_price': total_price,
     }
     return render(request, 'ecommerce/cart.html', context)
+
+
+def calculate_vendor_stats(vendor):
+    total_sales = 0
+    total_orders = 0
+    total_views = 0
+
+    for product in vendor.products.all():
+        total_views += product.total_views
+        order_details = OrderDetails.objects.filter(product=product)
+        total_orders += order_details.count()
+        total_sales += sum(detail.price *
+                           detail.quantity for detail in order_details)
+
+    conversion_rate = (total_orders / total_views) * \
+        100 if total_views > 0 else 0
+
+    return {
+        'total_sales': total_sales,
+        'total_orders': total_orders,
+        'total_views': total_views,
+        'conversion_rate': conversion_rate,
+    }
+
+
+@login_required
+@vendor_required
+def vendor_home(request):
+    vendor = request.user
+    stats = calculate_vendor_stats(vendor)
+
+    top_selling_products = ...
+    sales_data = ...
+    projected_data = ...
+
+    context = {
+        'total_sales': stats['total_sales'],
+        'total_orders': stats['total_orders'],
+        'total_views': stats['total_views'],
+        'conversion_rate': stats['conversion_rate'],
+        'top_selling_products': top_selling_products,
+        'sales_data': sales_data,
+        'projected_data': projected_data,
+    }
+
+    return render(request, 'ecommerce/vendor_page.html', context)
