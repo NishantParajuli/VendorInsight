@@ -1,13 +1,15 @@
 from django.shortcuts import render,  redirect, get_object_or_404
 from django.contrib.auth import login, authenticate
 from django.contrib.auth.decorators import login_required
-from .forms import UserRegisterForm, ProductForm, ReviewForm
+from .forms import UserRegisterForm, ProductForm, ReviewForm, SalesFilterForm
 from django.contrib import messages
 from .models import UserProfile, Product, Category, ProductReview, Cart, CartItem, Wishlist, Order, OrderDetails
 from django.http import HttpResponseForbidden
-from django.db.models import Q
+from django.db.models import Q, Sum, F
 from django.contrib.auth.views import LoginView
 from django.utils.decorators import method_decorator
+from django.utils import timezone
+from datetime import timedelta
 
 
 def logout_required(function):
@@ -222,11 +224,39 @@ def vendor_home(request):
     vendor = request.user
     stats = calculate_vendor_stats(vendor)
 
-    top_selling_products = ...
-    sales_data = ...
+    form = SalesFilterForm(request.GET)
+    selected_range = form.data.get('range')
+
+    time_ranges = {
+        '7_days': timedelta(days=7),
+        '1_month': timedelta(days=30),
+        '3_months': timedelta(days=90),
+        '6_months': timedelta(days=180),
+        '1_year': timedelta(days=365),
+        '5_years': timedelta(days=1825),
+    }
+
+    if selected_range in time_ranges:
+        time_threshold = timezone.now() - time_ranges[selected_range]
+        order_details = OrderDetails.objects.filter(
+            product__user=vendor,
+            order__order_date__gte=time_threshold
+        )
+    else:
+        order_details = OrderDetails.objects.filter(product__user=vendor)
+
+    top_selling_products = order_details.values('product__name').annotate(
+        total_quantity=Sum('quantity')
+    ).order_by('-total_quantity')[:5]
+
+    sales_data = order_details.values('order__order_date').annotate(
+        total_sales=Sum(F('price') * F('quantity'))
+    ).order_by('order__order_date')
+
     projected_data = ...
 
     context = {
+        'form': form,
         'total_sales': stats['total_sales'],
         'total_orders': stats['total_orders'],
         'total_views': stats['total_views'],

@@ -101,3 +101,17 @@ class ReviewForm(forms.ModelForm):
     class Meta:
         model = ProductReview
         fields = ['rating', 'comment']
+
+
+class SalesFilterForm(forms.Form):
+    RANGE_CHOICES = (
+        ('7_days', 'Last 7 Days'),
+        ('1_month', 'Last 1 Month'),
+        ('3_months', 'Last 3 Months'),
+        ('6_months', 'Last 6 Months'),
+        ('1_year', 'Last 1 Year'),
+        ('5_years', 'Last 5 Years'),
+        ('all_time', 'All Time'),
+    )
+
+    range = forms.ChoiceField(choices=RANGE_CHOICES, required=False)
