@@ -1,0 +1,37 @@
+introductiin: write abt the project
+first ma short diesc of project
+1.1 problem senario
+here stats are very imp
+write around 2-3 paragraphs (or one)
+1.2 project as a solution
+how it solces
+
+expected outcome and deliverables:
+application features : IT HAS TO BE IN THE APPLICATION!!!!!!!!!
+write in points
+-sub points for each point too (2-3)
+Future Works: It can be in the future after the completion (can add in FYP for extra marks)
+
+
+Risk threat and contigency plan
+
+(Make in a table)
+
+RISK | THREAT | CONTIGENCY |
+(name) | (how it is one) | (how to fix)
+
+SDLC
+choosing one and then write the advantages of why you are choosing it
+
+Resources :
+langs framesors , idle ,etc
+hardware comp and shit
+
+WBS:
+according to methodology
+
+Milestone:
+also from methodlogy
+
+gant chart: 
+according to milestone and methodology

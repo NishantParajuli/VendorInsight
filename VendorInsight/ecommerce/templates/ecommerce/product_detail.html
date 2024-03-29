@@ -1,0 +1,36 @@
+{% block content %}
+<h2>{{ product.name }}</h2>
+<!-- Display product details -->
+<p>{{ product.description }}</p>
+<p>Price: ${{ product.price }}</p>
+<!-- Display reviews -->
+<h3>Reviews</h3>
+{% for review in reviews %}
+    <p>
+        <strong>Reviewer:</strong> {{ review.user.first_name }}<br>
+        <strong>Rating:</strong> {{ review.rating }}<br>
+        <strong>Comment:</strong> {{ review.comment }}
+    </p>
+{% empty %}
+    <p>No reviews yet.</p>
+{% endfor %}
+
+<form method="post" action="{% url 'add_to_cart' product.id %}">
+    {% csrf_token %}
+    <input type="number" name="quantity" value="1" min="1" required>
+    <button type="submit">Add to Cart</button>
+</form>
+
+<form method="post" action="{% url 'add_to_wishlist' product.id %}">
+    {% csrf_token %}
+    <button type="submit">Add to Wishlist</button>
+</form>
+
+<!-- Add a review form -->
+<h4>Add a Review</h4>
+<form method="post">
+    {% csrf_token %}
+    {{ review_form.as_p }}
+    <button type="submit">Submit Review</button>
+</form>
+{% endblock %}

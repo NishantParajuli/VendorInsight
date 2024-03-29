@@ -1,0 +1,41 @@
+{% block content %}
+<h1>Welcome, Vendor!</h1>
+<p>This is the vendor-only page.</p>
+<h2>Vendor Statistics</h2>
+<ul>
+    <li>Total Sales: {{ total_sales }}</li>
+    <li>Total Orders: {{ total_orders }}</li>
+    <li>Total Views: {{ total_views }}</li>
+    <li>Conversion Rate: {{ conversion_rate }}%</li>
+</ul>
+
+<form method="GET">
+    {{ form.as_p }}
+    <button type="submit">Filter</button>
+</form>
+
+<h2>Top Selling Products</h2>
+<ul>
+    {% for product in top_selling_products %}
+        <li>{{ product.product__name }} - {{ product.total_quantity }} units sold</li>
+    {% endfor %}
+</ul>
+
+<h2>Sales Data</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Total Sales</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for data in sales_data %}
+            <tr>
+                <td>{{ data.order__order_date }}</td>
+                <td>{{ data.total_sales }}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
