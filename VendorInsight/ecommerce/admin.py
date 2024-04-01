@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, Product, Discount, Inventory, ProductReview, Cart, CartItem, Order, OrderDetails, Wishlist
+from .models import Category, Product, Discount, Inventory, ProductReview, Cart, CartItem, Order, OrderDetails, Wishlist, UserProfile
 # Register your models here.
 
 admin.site.register(Category)
@@ -12,6 +12,7 @@ admin.site.register(Cart)
 admin.site.register(Order)
 admin.site.register(OrderDetails)
 admin.site.register(Wishlist)
+admin.site.register(UserProfile)
 
 
 class CategoryInline(admin.TabularInline):

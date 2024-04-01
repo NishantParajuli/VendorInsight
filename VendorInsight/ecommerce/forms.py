@@ -11,18 +11,23 @@ class UserRegisterForm(UserCreationForm):
     phone_number = forms.CharField(max_length=15)
     address = forms.CharField(max_length=100)
     is_vendor = forms.BooleanField(required=False, label='Register as vendor')
+    gender = forms.ChoiceField(
+        choices=[('M', 'Male'), ('F', 'Female'), ('O', 'Other')])
+    date_of_birth = forms.DateField(
+        widget=forms.DateInput(attrs={'type': 'date'}))
 
     class Meta:
         model = User
         fields = ['username', 'email', 'password1', 'password2',
-                  'first_name', 'last_name', 'phone_number', 'address', 'is_vendor']
+                  'first_name', 'last_name', 'phone_number', 'address', 'is_vendor', 'gender', 'date_of_birth']
 
     def save(self, commit=True):
         user = super().save(commit=False)
         if commit:
             user.save()
             user_profile = UserProfile(
-                user=user, is_vendor=self.cleaned_data['is_vendor'])
+                user=user, is_vendor=self.cleaned_data['is_vendor'], gender=self.cleaned_data['gender'],
+                date_of_birth=self.cleaned_data['date_of_birth'])
             user_profile.save()
         return user
 

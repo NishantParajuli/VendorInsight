@@ -253,8 +253,6 @@ def vendor_home(request):
         total_sales=Sum(F('price') * F('quantity'))
     ).order_by('order__order_date')
 
-    projected_data = ...
-
     context = {
         'form': form,
         'total_sales': stats['total_sales'],
@@ -263,7 +261,6 @@ def vendor_home(request):
         'conversion_rate': stats['conversion_rate'],
         'top_selling_products': top_selling_products,
         'sales_data': sales_data,
-        'projected_data': projected_data,
     }
 
     return render(request, 'ecommerce/vendor_page.html', context)

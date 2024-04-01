@@ -23,6 +23,9 @@ class UserProfile(models.Model):
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     is_vendor = models.BooleanField(default=False)
+    gender = models.CharField(max_length=1, choices=[(
+        'M', 'Male'), ('F', 'Female'), ('O', 'Other')])
+    date_of_birth = models.DateField()
     # Add additional vendor-specific fields here if necessary
 
     def __str__(self):
