@@ -134,3 +134,5 @@ MEDIA_URL = "/uploads/"
 
 LOGIN_REDIRECT_URL = 'home'  # or wherever you want users to go after logging in
 LOGOUT_REDIRECT_URL = 'login'  # or your site's login page
+
+AUTH_USER_MODEL = 'ecommerce.User'

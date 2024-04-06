@@ -2,18 +2,13 @@ from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
+from django.contrib.auth.models import AbstractUser
 # Create your models here.
 
 
-class User(models.Model):
-    username = models.CharField(max_length=30, unique=True)
-    email = models.EmailField(max_length=100, unique=True)
-    password = models.CharField(max_length=30)
-    first_name = models.CharField(max_length=30)
-    last_name = models.CharField(max_length=30)
-    phone_number = models.CharField(max_length=15)
-    address = models.CharField(max_length=100)
-    date_joined = models.DateTimeField(auto_now_add=True)
+class User(AbstractUser):
+    phone_number = models.CharField(max_length=15, blank=True)
+    address = models.CharField(max_length=100, blank=True)
 
     def __str__(self):
         return self.username
@@ -26,7 +21,6 @@ class UserProfile(models.Model):
     gender = models.CharField(max_length=1, choices=[(
         'M', 'Male'), ('F', 'Female'), ('O', 'Other')])
     date_of_birth = models.DateField()
-    # Add additional vendor-specific fields here if necessary
 
     def __str__(self):
         return self.user.username
@@ -98,11 +92,14 @@ class ProductReview(models.Model):
 
 
 class Order(models.Model):
-    order_date = models.DateTimeField(auto_now_add=True)
+    order_date = models.DateTimeField()
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(max_length=50)
     user = models.ForeignKey(settings.AUTH_USER_MODEL,
                              on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f'{self.order_date}'
 
 
 class OrderDetails(models.Model):
