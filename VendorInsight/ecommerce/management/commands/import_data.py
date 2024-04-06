@@ -96,6 +96,8 @@ class Command(BaseCommand):
                 discount, _ = Discount.objects.get_or_create(
                     **discount_defaults)
 
+                additional_views = int(float(row['Quantity']))
+
                 # Now include both 'inventory' and 'discount' in the defaults for Product creation
                 product, created = Product.objects.get_or_create(
                     name=row['Product Name'],
@@ -105,8 +107,13 @@ class Command(BaseCommand):
                         'user': vendor_user,
                         'inventory': inventory,  # Associate Inventory here
                         'discount': discount,  # Associate Discount here
+                        'total_views': additional_views,
                     }
                 )
+
+                if not created:
+                    product.total_views += additional_views
+                    product.save()
 
                 # Add the category to the product
                 product.categories.add(category)

@@ -253,6 +253,11 @@ def vendor_home(request):
         total_sales=Sum(F('price') * F('quantity'))
     ).order_by('order__order_date')
 
+    # Prepare the sales data for Chart.js
+    labels = [data['order__order_date'].strftime(
+        '%Y-%m-%d') for data in sales_data]
+    data = [float(data['total_sales']) for data in sales_data]
+
     context = {
         'form': form,
         'total_sales': stats['total_sales'],
@@ -261,6 +266,8 @@ def vendor_home(request):
         'conversion_rate': stats['conversion_rate'],
         'top_selling_products': top_selling_products,
         'sales_data': sales_data,
+        'labels': labels,
+        'data': data,
     }
 
     return render(request, 'ecommerce/vendor_page.html', context)
