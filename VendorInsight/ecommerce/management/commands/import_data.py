@@ -37,6 +37,15 @@ class Command(BaseCommand):
 
         with open('Testing.csv', 'r') as file:
             reader = csv.DictReader(file)
+            max_order_date = max(datetime.strptime(
+                row['Order Date'], '%Y-%m-%d') for row in reader)
+
+            # Calculate the time difference between the maximum order date and the current date
+            time_diff = datetime.now().date() - max_order_date.date()
+
+            # Reset the file pointer to the beginning of the file
+            file.seek(0)
+            next(reader)
             for row in reader:
                 # Create or retrieve the user
                 norm_user, created = User.objects.get_or_create(

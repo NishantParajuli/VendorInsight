@@ -3,13 +3,24 @@ from django.contrib.auth import login, authenticate
 from django.contrib.auth.decorators import login_required
 from .forms import UserRegisterForm, ProductForm, ReviewForm, SalesFilterForm
 from django.contrib import messages
-from .models import UserProfile, Product, Category, ProductReview, Cart, CartItem, Wishlist, Order, OrderDetails
+from .models import UserProfile, Product, Category, ProductReview, Cart, CartItem, Wishlist, Order, OrderDetails, User
 from django.http import HttpResponseForbidden
 from django.db.models import Q, Sum, F
 from django.contrib.auth.views import LoginView
 from django.utils.decorators import method_decorator
 from django.utils import timezone
 from datetime import timedelta
+from django.core.paginator import Paginator
+
+
+import pandas as pd
+import numpy as np
+from pmdarima import auto_arima
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.cluster import KMeans
+from xgboost import XGBRegressor
+from django.db.models import Count
 
 
 def logout_required(function):
@@ -87,6 +98,11 @@ def home(request):
             products = products.order_by('price')
         elif sort_by == 'price_desc':
             products = products.order_by('-price')
+
+    # Pagination
+    paginator = Paginator(products, 9)  # Show 9 products per page
+    page = request.GET.get('page')
+    products = paginator.get_page(page)
 
     context = {
         'products': products,
@@ -271,3 +287,109 @@ def vendor_home(request):
     }
 
     return render(request, 'ecommerce/vendor_page.html', context)
+
+
+@login_required
+@vendor_required
+def vendor_analytics(request):
+    vendor = request.user
+    products = vendor.products.all()
+
+    # Sales prediction using Auto ARIMA
+    order_details = OrderDetails.objects.filter(product__user=vendor)
+    sales_data = pd.DataFrame(list(order_details.values(
+        'order__order_date', 'price', 'quantity')))
+    sales_data['order__order_date'] = pd.to_datetime(
+        sales_data['order__order_date'])
+    sales_data['sales'] = sales_data['price'] * sales_data['quantity']
+    ts_data = sales_data.groupby(pd.Grouper(key='order__order_date', freq='D'))[
+        'sales'].sum()
+
+    ts_data_log = np.log(ts_data.astype(float) + 1)
+    model = auto_arima(ts_data_log, seasonal=True,
+                       m=12, suppress_warnings=True)
+
+    last_date = ts_data.index[-1]
+    future_dates_sales = pd.date_range(
+        start=last_date + pd.Timedelta(days=1), periods=30, freq='D')
+    future_predictions_sales = np.exp(
+        model.predict(n_periods=len(future_dates_sales)))
+
+    # Customer segmentation using K-means
+    customer_orders = Order.objects.filter(orderdetails__product__user=vendor).values('user').annotate(
+        total_spent=Sum(F('orderdetails__price') *
+                        F('orderdetails__quantity')),
+        order_count=Count('id')
+    )
+
+    customer_data = []
+    for order in customer_orders:
+        user = User.objects.get(id=order['user'])
+        age = (timezone.now().date() -
+               user.userprofile.date_of_birth).days // 365
+        most_ordered_category = OrderDetails.objects.filter(order__user=user).values(
+            'product__categories__name').annotate(count=Count('id')).order_by('-count').first()['product__categories__name']
+        customer_data.append({
+            'user_id': user.id,
+            'age': age,
+            'total_order_amount': order['total_spent'],
+            'order_frequency': order['order_count'],
+            'gender': user.userprofile.gender,
+            'most_ordered_category': most_ordered_category
+        })
+
+    features_df = pd.DataFrame(customer_data)
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ('num', StandardScaler(), [
+             'age', 'total_order_amount', 'order_frequency']),
+            ('cat', OneHotEncoder(), ['gender', 'most_ordered_category'])
+        ])
+    X_processed = preprocessor.fit_transform(features_df)
+
+    kmeans = KMeans(n_clusters=4, random_state=42)
+    clusters = kmeans.fit_predict(X_processed)
+    features_df['cluster'] = clusters
+
+    # Inventory prediction using XGBoost
+    inventory_data = []
+    for product in products:
+        daily_sales = pd.DataFrame(list(OrderDetails.objects.filter(
+            product=product).values('order__order_date', 'quantity')))
+        daily_sales['order__order_date'] = pd.to_datetime(
+            daily_sales['order__order_date'])
+        daily_sales['day_of_week'] = daily_sales['order__order_date'].dt.dayofweek
+        daily_sales['month'] = daily_sales['order__order_date'].dt.month
+
+        X = daily_sales[['day_of_week', 'month']]
+        y = daily_sales['quantity']
+
+        xgb_model = XGBRegressor(objective='reg:squarederror',
+                                 n_estimators=100, learning_rate=0.1, random_state=42)
+        xgb_model.fit(X, y)
+
+        future_dates = pd.date_range(start=daily_sales['order__order_date'].max(
+        ) + pd.Timedelta(days=1), periods=7, freq='D')
+        future_data = pd.DataFrame({
+            'day_of_week': future_dates.dayofweek,
+            'month': future_dates.month
+        })
+        future_predictions = xgb_model.predict(future_data)
+        print(future_predictions.tolist())
+
+        inventory_data.append({
+            'product_name': product.name,
+            'current_stock': product.inventory.current_stock,
+            'safety_stock_level': product.inventory.safety_stock_level,
+            'reorder_point': product.inventory.reorder_point,
+            'future_predictions': future_predictions.tolist()
+        })
+
+    context = {
+        'sales_dates': future_dates_sales.strftime('%Y-%m-%d').tolist(),
+        'sales_predictions': future_predictions_sales.tolist(),
+        'customer_segmentation': features_df.to_dict(orient='records'),
+        'inventory_data': inventory_data
+    }
+
+    return render(request, 'ecommerce/vendor_analytics.html', context)

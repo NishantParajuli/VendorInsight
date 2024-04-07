@@ -1,0 +1,96 @@
+{% block content %}
+<h2>Vendor Analytics</h2>
+
+<div>
+    <h3>Sales Prediction</h3>
+    <canvas id="salesChart"></canvas>
+</div>
+
+<div>
+    <h3>Customer Segmentation</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>User ID</th>
+                <th>Age</th>
+                <th>Total Order Amount</th>
+                <th>Order Frequency</th>
+                <th>Gender</th>
+                <th>Most Ordered Category</th>
+                <th>Cluster</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for customer in customer_segmentation %}
+            <tr>
+                <td>{{ customer.user_id }}</td>
+                <td>{{ customer.age }}</td>
+                <td>{{ customer.total_order_amount }}</td>
+                <td>{{ customer.order_frequency }}</td>
+                <td>{{ customer.gender }}</td>
+                <td>{{ customer.most_ordered_category }}</td>
+                <td>{{ customer.cluster }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div>
+    <h3>Inventory Management</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Product</th>
+                <th>Current Stock</th>
+                <th>Safety Stock Level</th>
+                <th>Reorder Point</th>
+                <th>Future Predictions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in inventory_data %}
+            <tr>
+                <td>{{ item.product_name }}</td>
+                <td>{{ item.current_stock }}</td>
+                <td>{{ item.safety_stock_level }}</td>
+                <td>{{ item.reorder_point }}</td>
+                <td>
+                    {% comment %} seven days of future predictions in a list {% endcomment %}
+                    {{ item.future_predictions}}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Sales prediction chart
+    var salesDates = {{ sales_dates|safe }};
+    var salesPredictions = {{ sales_predictions|safe }};
+    var salesChart = new Chart(document.getElementById('salesChart'), {
+        type: 'line',
+        data: {
+            labels: salesDates,
+            datasets: [{
+                label: 'Sales Predictions',
+                data: salesPredictions,
+                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+
+    // Customer segmentation chart
+</script>
+{% endblock %}
