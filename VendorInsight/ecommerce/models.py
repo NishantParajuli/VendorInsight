@@ -38,6 +38,16 @@ class Product(models.Model):
     categories = models.ManyToManyField('Category', related_name='products')
     total_views = models.PositiveIntegerField(default=0)
 
+    def average_sentiment(self):
+        sentiments = {'sadness': -2, 'anger': -1, 'fear': -1,
+                      'joy': 2, 'love': 3, 'surprise': 1, 'neutral': 0}
+        reviews = self.productreview_set.all()
+        if not reviews:
+            return 0
+        sentiment_score = sum(sentiments.get(review.sentiment, 0)
+                              for review in reviews) / len(reviews)
+        return sentiment_score
+
     def __str__(self):
         return self.name
 

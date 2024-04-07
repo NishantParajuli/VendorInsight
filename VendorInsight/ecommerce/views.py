@@ -12,6 +12,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.core.paginator import Paginator
 
+from .recommendation_engine import recommend_products
 
 import pandas as pd
 import numpy as np
@@ -162,11 +163,13 @@ def product_detail(request, product_id):
 
     product.total_views += 1
     product.save()
+    recommended_products = recommend_products(product_id, 5)
 
     context = {
         'product': product,
         'reviews': reviews,
         'review_form': review_form,
+        'recommended_products': recommended_products,
     }
     return render(request, 'ecommerce/product_detail.html', context)
 

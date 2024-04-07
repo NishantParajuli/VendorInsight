@@ -1,4 +1,11 @@
 {% block content %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}VendorInsight{% endblock title %}</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"/>
+    {% block css_files %}{% endblock css_files %}
+</head>
 <h2>{{ product.name }}</h2>
 <!-- Display product details -->
 <p>{{ product.description }}</p>
@@ -33,4 +40,24 @@
     {{ review_form.as_p }}
     <button type="submit">Submit Review</button>
 </form>
+
+<div class="recommended-products">
+    <h2>Recommended Products</h2>
+    <div class="row">
+        {% for product in recommended_products %}
+        <div class="col-md-4">
+            <!-- Product Card -->
+            <div class="card">
+                <img src="{% if product.productimage_set.first %}{{ product.productimage_set.first.image.url }}{% endif %}" class="card-img-top" alt="{{ product.name }}">
+                <div class="card-body">
+                    <h5 class="card-title">{{ product.name }}</h5>
+                    <p class="card-text">{{ product.description }}</p>
+                    <a href="{% url 'product_detail' product.id %}" class="btn btn-primary">View Product</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
 {% endblock %}
