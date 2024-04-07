@@ -22,6 +22,10 @@ from sklearn.cluster import KMeans
 from xgboost import XGBRegressor
 from django.db.models import Count
 
+from transformers import pipeline
+classifier = pipeline("text-classification",
+                      model='bhadresh-savani/distilbert-base-uncased-emotion', return_all_scores=False)
+
 
 def logout_required(function):
     def wrap(request, *args, **kwargs):
@@ -125,6 +129,14 @@ def add_product(request):
     return render(request, 'ecommerce/add_product.html', {'form': form})
 
 
+def analyze_and_update_review_sentiment(review):
+    # Perform sentiment analysis
+    prediction = classifier(review.comment)
+    # Assuming the highest score sentiment is what we want
+    review.sentiment = prediction[0]['label']
+    review.save()
+
+
 @login_required
 def product_detail(request, product_id):
     product = get_object_or_404(Product, pk=product_id)
@@ -139,6 +151,10 @@ def product_detail(request, product_id):
             new_review.product = product
             new_review.user = request.user
             new_review.save()
+
+            # Call the analyze_and_update_review_sentiment function here
+            analyze_and_update_review_sentiment(new_review)
+
             messages.success(request, 'Review added successfully!')
             return redirect('product_detail', product_id=product.id)
     else:
@@ -391,5 +407,27 @@ def vendor_analytics(request):
         'customer_segmentation': features_df.to_dict(orient='records'),
         'inventory_data': inventory_data
     }
+
+    # Aggregate sentiment data for each product
+    product_sentiment_data = Product.objects.filter(user=request.user).annotate(
+        sadness=Count('productreview', filter=Q(
+            productreview__sentiment='sadness')),
+        joy=Count('productreview', filter=Q(productreview__sentiment='joy')),
+        love=Count('productreview', filter=Q(productreview__sentiment='love')),
+        anger=Count('productreview', filter=Q(
+            productreview__sentiment='anger')),
+        fear=Count('productreview', filter=Q(productreview__sentiment='fear')),
+        surprise=Count('productreview', filter=Q(
+            productreview__sentiment='surprise')),
+    )
+
+    # Aggregate overall sentiment data for the vendor
+    overall_sentiment_counts = ProductReview.objects.filter(
+        product__user=request.user).values('sentiment').annotate(total=Count('sentiment'))
+
+    context.update({
+        'product_sentiment_data': product_sentiment_data,
+        'overall_sentiment_counts': overall_sentiment_counts,
+    })
 
     return render(request, 'ecommerce/vendor_analytics.html', context)

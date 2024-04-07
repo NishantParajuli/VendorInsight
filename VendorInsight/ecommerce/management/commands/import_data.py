@@ -138,7 +138,8 @@ class Command(BaseCommand):
                         )
 
                 # Create the order and order details
-                order_date = datetime.strptime(row['Order Date'], '%Y-%m-%d')
+                order_date = datetime.strptime(
+                    row['Order Date'], '%Y-%m-%d') + time_diff
                 order = Order.objects.create(
                     order_date=order_date,
                     total_amount=float(row['Sales']),

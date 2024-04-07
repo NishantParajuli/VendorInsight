@@ -5,7 +5,25 @@
     <h3>Sales Prediction</h3>
     <canvas id="salesChart"></canvas>
 </div>
+<h4>Product Sentiment Analysis</h4>
+{% for product in product_sentiment_data %}
+    <div>
+        <h5>{{ product.name }}</h5>
+        <p>Sadness: {{ product.sadness }}</p>
+        <p>Joy: {{ product.joy }}</p>
+        <p>Love: {{ product.love }}</p>
+        <p>Anger: {{ product.anger }}</p>
+        <p>Fear: {{ product.fear }}</p>
+        <p>Surprise: {{ product.surprise }}</p>
+    </div>
+{% endfor %}
 
+<h4>Overall Vendor Sentiment</h4>
+<div>
+    {% for sentiment in overall_sentiment_counts %}
+        <p>{{ sentiment.sentiment }}: {{ sentiment.total }}</p>
+    {% endfor %}
+</div>
 <div>
     <h3>Customer Segmentation</h3>
     <table>
@@ -91,6 +109,5 @@
         }
     });
 
-    // Customer segmentation chart
 </script>
 {% endblock %}
