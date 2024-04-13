@@ -1,83 +1,116 @@
+{% extends 'base.html' %}
+
 {% block content %}
-<h1>Vendor Products</h1>
+<div class="container">
+    <h1 class="my-4">Vendor Products</h1>
 
-{% for product in page_obj %}
-<div class="product">
-    <h2>{{ product.name }}</h2>
-    <p>{{ product.description }}</p>
-    <p>Price: {{ product.price }}</p>
+    {% for product in page_obj %}
+    <div class="card mb-4">
+        <div class="card-body">
+            <h2 class="card-title">{{ product.name }}</h2>
+            <p class="card-text">{{ product.description }}</p>
+            <p class="card-text">Price: {{ product.price }}</p>
 
-    <form method="POST" enctype="multipart/form-data">
-        {% csrf_token %}
-        <input type="hidden" name="product_id" value="{{ product.id }}">
-        <button type="submit" name="action" value="delete">Delete</button>
-    </form>
+            <form method="POST" enctype="multipart/form-data" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="product_id" value="{{ product.id }}">
+                <button type="submit" name="action" value="delete" class="btn btn-danger">Delete</button>
+            </form>
 
-    <form method="POST" enctype="multipart/form-data">
-        {% csrf_token %}
-        <input type="hidden" name="product_id" value="{{ product.id }}">
-        <button type="button" onclick="toggleEditForm(this)">Edit</button>
+            <form method="POST" enctype="multipart/form-data" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="product_id" value="{{ product.id }}">
+                <button type="button" onclick="toggleEditForm(this)" class="btn btn-primary">Edit</button>
 
-        <div class="edit-form" style="display: none;">
-            <label for="name">Name:</label>
-            <input type="text" name="name" value="{{ product.name }}">
-            <label for="description">Description:</label>
-            <textarea name="description">{{ product.description }}</textarea>
-            <label for="price">Price:</label>
-            <input type="number" name="price" value="{{ product.price }}" step="any">
+                <div class="edit-form mt-3" style="display: none;">
+                    <div class="form-group">
+                        <label for="name">Name:</label>
+                        <input type="text" name="name" value="{{ product.name }}" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="description">Description:</label>
+                        <textarea name="description" class="form-control">{{ product.description }}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="price">Price:</label>
+                        <input type="number" name="price" value="{{ product.price }}" step="any" class="form-control">
+                    </div>
 
-            <!-- Add inventory fields -->
-            <label for="current_stock">Current Stock:</label>
-            <input type="number" name="current_stock" value="{{ product.inventory.current_stock }}">
-            <label for="safety_stock_level">Safety Stock Level:</label>
-            <input type="number" name="safety_stock_level" value="{{ product.inventory.safety_stock_level }}">
-            <label for="reorder_point">Reorder Point:</label>
-            <input type="number" name="reorder_point" value="{{ product.inventory.reorder_point }}">
+                    <div class="form-group">
+                        <label for="current_stock">Current Stock:</label>
+                        <input type="number" name="current_stock" value="{{ product.inventory.current_stock }}" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="safety_stock_level">Safety Stock Level:</label>
+                        <input type="number" name="safety_stock_level" value="{{ product.inventory.safety_stock_level }}" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="reorder_point">Reorder Point:</label>
+                        <input type="number" name="reorder_point" value="{{ product.inventory.reorder_point }}" class="form-control">
+                    </div>
 
-            <!-- Add discount fields -->
-            <label for="discount_type">Discount Type:</label>
-            <select name="discount_type">
-                <option value="">-- Select Discount Type --</option>
-                {% for value, label in discount_types %}
-                <option value="{{ value }}" {% if product.discount.discount_type == value %}selected{% endif %}>{{ label }}</option>
-                {% endfor %}
-            </select>
-            <label for="discount_value">Discount Value:</label>
-            <input type="number" name="discount_value" value="{{ product.discount.discount_value }}" step="any">
-            <label for="start_date">Discount Start Date:</label>
-            <input type="datetime-local" name="start_date" value="{{ product.discount.start_date|date:'Y-m-d\TH:i' }}">
-            <label for="end_date">Discount End Date:</label>
-            <input type="datetime-local" name="end_date" value="{{ product.discount.end_date|date:'Y-m-d\TH:i' }}">
+                    <div class="form-group">
+                        <label for="discount_type">Discount Type:</label>
+                        <select name="discount_type" class="form-control">
+                            <option value="">-- Select Discount Type --</option>
+                            {% for value, label in discount_types %}
+                            <option value="{{ value }}" {% if product.discount.discount_type == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="discount_value">Discount Value:</label>
+                        <input type="number" name="discount_value" value="{{ product.discount.discount_value }}" step="any" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="start_date">Discount Start Date:</label>
+                        <input type="datetime-local" name="start_date" value="{{ product.discount.start_date|date:'Y-m-d\TH:i' }}" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="end_date">Discount End Date:</label>
+                        <input type="datetime-local" name="end_date" value="{{ product.discount.end_date|date:'Y-m-d\TH:i' }}" class="form-control">
+                    </div>
 
-            <!-- Add category fields -->
-            <label for="categories">Categories:</label>
-            <select name="categories" multiple>
-                {% for category in categories %}
-                <option value="{{ category.id }}" {% if category in product.categories.all %}selected{% endif %}>{{ category.name }}</option>
-                {% endfor %}
-            </select>
-            <button type="submit" name="action" value="edit">Update</button>
+                    <div class="form-group">
+                        <label for="categories">Categories:</label>
+                        <select name="categories" multiple class="form-control">
+                            {% for category in categories %}
+                            <option value="{{ category.id }}" {% if category in product.categories.all %}selected{% endif %}>{{ category.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" name="action" value="edit" class="btn btn-primary">Update</button>
+                </div>
+            </form>
         </div>
-    </form>
-</div>
-{% endfor %}
+    </div>
+    {% endfor %}
 
-<div class="pagination">
-    <span class="step-links">
-        {% if page_obj.has_previous %}
-            <a href="?page=1">&laquo; First</a>
-            <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
-        {% endif %}
+    <nav aria-label="Page navigation">
+        <ul class="pagination">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page=1">&laquo; First</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+            </li>
+            {% endif %}
 
-        <span class="current">
-            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.
-        </span>
+            <li class="page-item disabled">
+                <a class="page-link" href="#">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</a>
+            </li>
 
-        {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}">Next</a>
-            <a href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
-        {% endif %}
-    </span>
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+            </li>
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
 </div>
 
 <script>
@@ -86,5 +119,4 @@
         editForm.style.display = editForm.style.display === 'none' ? 'block' : 'none';
     }
 </script>
-
 {% endblock %}
