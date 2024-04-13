@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import register, home, vendor_home, add_product, CustomLoginView, product_detail, add_to_cart, add_to_wishlist, cart, vendor_analytics
+from .views import register, home, vendor_home, add_product, CustomLoginView, product_detail, add_to_cart, add_to_wishlist, cart, vendor_analytics, vendor_products
 from django.contrib.auth.views import LoginView, LogoutView
 
 urlpatterns = [
@@ -18,4 +18,6 @@ urlpatterns += [
     path('add_to_wishlist/<int:product_id>/',
          add_to_wishlist, name='add_to_wishlist'),
     path('cart/', cart, name='cart'),
+    path('vendor/products/', vendor_products, name='vendor_products'),
+
 ]

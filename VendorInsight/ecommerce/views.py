@@ -3,7 +3,7 @@ from django.contrib.auth import login, authenticate
 from django.contrib.auth.decorators import login_required
 from .forms import UserRegisterForm, ProductForm, ReviewForm, SalesFilterForm
 from django.contrib import messages
-from .models import UserProfile, Product, Category, ProductReview, Cart, CartItem, Wishlist, Order, OrderDetails, User
+from .models import UserProfile, Product, Category, ProductReview, Cart, CartItem, Wishlist, Order, OrderDetails, User, Discount
 from django.http import HttpResponseForbidden
 from django.db.models import Q, Sum, F
 from django.contrib.auth.views import LoginView
@@ -11,9 +11,10 @@ from django.utils.decorators import method_decorator
 from django.utils import timezone
 from datetime import timedelta
 from django.core.paginator import Paginator
-
+from decimal import Decimal, InvalidOperation
 from .recommendation_engine import recommend_products
-
+from django.core.exceptions import ValidationError
+from django import forms
 import pandas as pd
 import numpy as np
 from pmdarima import auto_arima
@@ -434,3 +435,112 @@ def vendor_analytics(request):
     })
 
     return render(request, 'ecommerce/vendor_analytics.html', context)
+
+
+class PriceField(forms.DecimalField):
+    def to_python(self, value):
+        try:
+            return super().to_python(value)
+        except ValidationError:
+            # Replace comma with dot as decimal separator
+            value = value.replace(',', '.')
+            return super().to_python(value)
+
+
+@login_required
+@vendor_required
+def vendor_products(request):
+    vendor = request.user
+    products = Product.objects.filter(user=vendor)
+    categories = Category.objects.all()
+    discount_types = Discount.DiscountType.choices
+
+    if request.method == 'POST':
+        product_id = request.POST.get('product_id')
+        action = request.POST.get('action')
+
+        if action == 'delete':
+            product = get_object_or_404(Product, id=product_id, user=vendor)
+            product.delete()
+            messages.success(request, 'Product deleted successfully!')
+        elif action == 'edit':
+            product = get_object_or_404(Product, id=product_id, user=vendor)
+            product.name = request.POST.get('name')
+            product.description = request.POST.get('description')
+            price_field = PriceField()
+            try:
+                product.price = price_field.to_python(
+                    request.POST.get('price'))
+            except InvalidOperation:
+                messages.error(
+                    request, 'Invalid price value. Please enter a valid decimal number.')
+                return redirect('vendor_products')
+
+            # Update inventory fields
+            try:
+                product.inventory.current_stock = int(
+                    request.POST.get('current_stock'))
+                product.inventory.safety_stock_level = int(
+                    request.POST.get('safety_stock_level'))
+                product.inventory.reorder_point = int(
+                    request.POST.get('reorder_point'))
+                product.inventory.save()
+            except ValueError:
+                messages.error(
+                    request, 'Invalid inventory values. Please enter valid integers.')
+                return redirect('vendor_products')
+
+            # Update discount fields
+            discount_type = request.POST.get('discount_type')
+            if discount_type:
+                if product.discount:
+                    product.discount.discount_type = discount_type
+                    try:
+                        discount_value_field = PriceField()
+                        product.discount.discount_value = discount_value_field.to_python(
+                            request.POST.get('discount_value'))
+                    except InvalidOperation:
+                        messages.error(
+                            request, 'Invalid discount value. Please enter a valid decimal number.')
+                        return redirect('vendor_products')
+                    product.discount.start_date = request.POST.get(
+                        'start_date')
+                    product.discount.end_date = request.POST.get('end_date')
+                    product.discount.save()
+                else:
+                    try:
+                        discount_value_field = PriceField()
+                        discount_value = discount_value_field.to_python(
+                            request.POST.get('discount_value'))
+                    except InvalidOperation:
+                        messages.error(
+                            request, 'Invalid discount value. Please enter a valid decimal number.')
+                        return redirect('vendor_products')
+                    discount = Discount(
+                        discount_type=discount_type,
+                        discount_value=discount_value,
+                        start_date=request.POST.get('start_date'),
+                        end_date=request.POST.get('end_date')
+                    )
+                    discount.save()
+                    product.discount = discount
+            else:
+                product.discount = None
+
+            # Update category fields
+            selected_categories = request.POST.getlist('categories')
+            product.categories.set(selected_categories)
+
+            product.save()
+            messages.success(request, 'Product updated successfully!')
+
+    paginator = Paginator(products, 10)  # Show 10 products per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'page_obj': page_obj,
+        'categories': categories,
+        'discount_types': discount_types,
+    }
+    return render(request, 'ecommerce/vendor_products.html', context)

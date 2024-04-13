@@ -59,9 +59,21 @@ class ProductForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         # Extract user from kwargs and remove it
         self.user = kwargs.pop('user', None)
+        self.instance = kwargs.pop('instance', None)
         super(ProductForm, self).__init__(*args, **kwargs)
         self.fields['categories'].widget = forms.CheckboxSelectMultiple()
         self.fields['categories'].queryset = Category.objects.all()
+
+        if self.instance.pk:
+            self.fields['current_stock'].initial = self.instance.inventory.current_stock
+            self.fields['safety_stock_level'].initial = self.instance.inventory.safety_stock_level
+            self.fields['reorder_point'].initial = self.instance.inventory.reorder_point
+
+            if self.instance.discount:
+                self.fields['discount_type'].initial = self.instance.discount.discount_type
+                self.fields['discount_value'].initial = self.instance.discount.discount_value
+                self.fields['start_date'].initial = self.instance.discount.start_date
+                self.fields['end_date'].initial = self.instance.discount.end_date
 
     def save(self, commit=True):
         product = super().save(commit=False)

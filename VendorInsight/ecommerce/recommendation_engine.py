@@ -22,7 +22,7 @@ def recommend_products(product_id, num_recommendations=5):
     cosine_similarities = cosine_similarity(
         feature_matrix[product_idx:product_idx+1], feature_matrix).flatten()
     related_product_indices = cosine_similarities.argsort(
-    )[-num_recommendations-1:-1][::-1]
+    )[-num_recommendations-1:-1][::-1]  # Get indices of products sorted by similarity (largest first), excluding the top one (the product itself)
 
     # Exclude the product itself
     recommended_product_ids = [product_ids[i]

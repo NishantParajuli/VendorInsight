@@ -1,0 +1,90 @@
+{% block content %}
+<h1>Vendor Products</h1>
+
+{% for product in page_obj %}
+<div class="product">
+    <h2>{{ product.name }}</h2>
+    <p>{{ product.description }}</p>
+    <p>Price: {{ product.price }}</p>
+
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="product_id" value="{{ product.id }}">
+        <button type="submit" name="action" value="delete">Delete</button>
+    </form>
+
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="product_id" value="{{ product.id }}">
+        <button type="button" onclick="toggleEditForm(this)">Edit</button>
+
+        <div class="edit-form" style="display: none;">
+            <label for="name">Name:</label>
+            <input type="text" name="name" value="{{ product.name }}">
+            <label for="description">Description:</label>
+            <textarea name="description">{{ product.description }}</textarea>
+            <label for="price">Price:</label>
+            <input type="number" name="price" value="{{ product.price }}" step="any">
+
+            <!-- Add inventory fields -->
+            <label for="current_stock">Current Stock:</label>
+            <input type="number" name="current_stock" value="{{ product.inventory.current_stock }}">
+            <label for="safety_stock_level">Safety Stock Level:</label>
+            <input type="number" name="safety_stock_level" value="{{ product.inventory.safety_stock_level }}">
+            <label for="reorder_point">Reorder Point:</label>
+            <input type="number" name="reorder_point" value="{{ product.inventory.reorder_point }}">
+
+            <!-- Add discount fields -->
+            <label for="discount_type">Discount Type:</label>
+            <select name="discount_type">
+                <option value="">-- Select Discount Type --</option>
+                {% for value, label in discount_types %}
+                <option value="{{ value }}" {% if product.discount.discount_type == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <label for="discount_value">Discount Value:</label>
+            <input type="number" name="discount_value" value="{{ product.discount.discount_value }}" step="any">
+            <label for="start_date">Discount Start Date:</label>
+            <input type="datetime-local" name="start_date" value="{{ product.discount.start_date|date:'Y-m-d\TH:i' }}">
+            <label for="end_date">Discount End Date:</label>
+            <input type="datetime-local" name="end_date" value="{{ product.discount.end_date|date:'Y-m-d\TH:i' }}">
+
+            <!-- Add category fields -->
+            <label for="categories">Categories:</label>
+            <select name="categories" multiple>
+                {% for category in categories %}
+                <option value="{{ category.id }}" {% if category in product.categories.all %}selected{% endif %}>{{ category.name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" name="action" value="edit">Update</button>
+        </div>
+    </form>
+</div>
+{% endfor %}
+
+<div class="pagination">
+    <span class="step-links">
+        {% if page_obj.has_previous %}
+            <a href="?page=1">&laquo; First</a>
+            <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+        {% endif %}
+
+        <span class="current">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.
+        </span>
+
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}">Next</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
+        {% endif %}
+    </span>
+</div>
+
+<script>
+    function toggleEditForm(button) {
+        var editForm = button.parentNode.querySelector('.edit-form');
+        editForm.style.display = editForm.style.display === 'none' ? 'block' : 'none';
+    }
+</script>
+
+{% endblock %}
