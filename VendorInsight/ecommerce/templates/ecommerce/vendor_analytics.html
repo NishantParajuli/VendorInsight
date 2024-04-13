@@ -1,58 +1,67 @@
 {% block content %}
 <h2>Vendor Analytics</h2>
 
-<div>
-    <h3>Sales Prediction by Category</h3>
+<style>
+.chart-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.chart-item {
+    background-color: #f5f5f5;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+</style>
+
+<div class="chart-grid">
     {% for category, data in category_sales_predictions.items %}
-        <div>
+        <div class="chart-item">
             <h4>{{ category }}</h4>
             <canvas id="salesChart_{{ category }}"></canvas>
         </div>
     {% endfor %}
 </div>
-<h4>Product Sentiment Analysis</h4>
-{% for product in product_sentiment_data %}
-    <div>
-        <h5>{{ product.name }}</h5>
-        <p>Sadness: {{ product.sadness }}</p>
-        <p>Joy: {{ product.joy }}</p>
-        <p>Love: {{ product.love }}</p>
-        <p>Anger: {{ product.anger }}</p>
-        <p>Fear: {{ product.fear }}</p>
-        <p>Surprise: {{ product.surprise }}</p>
-    </div>
-{% endfor %}
 
-<h4>Overall Vendor Sentiment</h4>
 <div>
-    {% for sentiment in overall_sentiment_counts %}
-        <p>{{ sentiment.sentiment }}: {{ sentiment.total }}</p>
-    {% endfor %}
+    <h4>Overall Vendor Sentiment</h4>
+    <canvas id="overallSentimentChart"></canvas>
+    <button id="detailsButton">Details</button>
+    <div id="productSentimentDetails" style="display: none;">
+        {% for product in product_sentiment_data %}
+            {% if product.sadness > 0 or product.joy > 0 or product.love > 0 or product.anger > 0 or product.fear > 0 or product.surprise > 0 %}
+                <div>
+                    <h5>{{ product.name }}</h5>
+                    <canvas id="productSentimentChart_{{ product.id }}"></canvas>
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
 </div>
+
 <div>
     <h3>Customer Segmentation</h3>
+    <canvas id="clusterChart"></canvas>
     <table>
         <thead>
             <tr>
-                <th>User ID</th>
-                <th>Age</th>
-                <th>Total Order Amount</th>
-                <th>Order Frequency</th>
-                <th>Gender</th>
-                <th>Most Ordered Category</th>
                 <th>Cluster</th>
+                <th>Average Age</th>
+                <th>Average Total Order</th>
+                <th>Average Order Frequency</th>
+                <th>Average Gender</th>
             </tr>
         </thead>
         <tbody>
-            {% for customer in customer_segmentation %}
+            {% for cluster in cluster_averages %}
             <tr>
-                <td>{{ customer.user_id }}</td>
-                <td>{{ customer.age }}</td>
-                <td>{{ customer.total_order_amount }}</td>
-                <td>{{ customer.order_frequency }}</td>
-                <td>{{ customer.gender }}</td>
-                <td>{{ customer.most_ordered_category }}</td>
-                <td>{{ customer.cluster }}</td>
+                <td>{{ cluster.cluster }}</td>
+                <td>{{ cluster.age|floatformat:2 }}</td>
+                <td>{{ cluster.total_order_amount|floatformat:2 }}</td>
+                <td>{{ cluster.order_frequency|floatformat:2 }}</td>
+                <td>{{ cluster.gender }}</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -71,26 +80,63 @@
                 <th>Future Predictions</th>
             </tr>
         </thead>
+
         <tbody>
-            {% for item in inventory_data %}
+            {% for item in page_obj %}
             <tr>
+                <td><a href="#" onclick="showPredictions({{ item.product_id }})">{{ item.product_name }}</a></td>
+                <!-- ... (existing code) ... -->
                 <td>{{ item.product_name }}</td>
                 <td>{{ item.current_stock }}</td>
                 <td>{{ item.safety_stock_level }}</td>
                 <td>{{ item.reorder_point }}</td>
-                <td>
-                    {% comment %} seven days of future predictions in a list {% endcomment %}
-                    {{ item.future_predictions}}
+            </tr>
+            <tr id="predictions-{{ item.product_id }}" style="display: none;">
+                <td colspan="5">
+                    <h4>Future Predictions:</h4>
+                    <ul>
+                        {% for prediction in item.future_predictions %}
+                        <li>{{ prediction }}</li>
+                        {% endfor %}
+                    </ul>
                 </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+
+    <div class="pagination">
+        <span class="step-links">
+            {% if page_obj.has_previous %}
+                <a href="?page=1">&laquo; First</a>
+                <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+            {% endif %}
+
+            <span class="current-page">
+                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.
+            </span>
+
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}">Next</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
+            {% endif %}
+        </span>
+    </div>
+    
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 <script>
-    
+
+    function showPredictions(productId) {
+        var predictionsRow = document.getElementById('predictions-' + productId);
+        if (predictionsRow.style.display === 'none') {
+            predictionsRow.style.display = 'table-row';
+        } else {
+            predictionsRow.style.display = 'none';
+        }
+    }
 
     // Sales prediction charts for each category
     {% for category, data in category_sales_predictions.items %}
@@ -117,5 +163,119 @@
             }
         });
     {% endfor %}
+
+    var overallSentimentData = [
+        {% for sentiment in overall_sentiment_counts %}
+            {{ sentiment.total }},
+        {% endfor %}
+    ];
+
+    var overallSentimentLabels = [
+        {% for sentiment in overall_sentiment_counts %}
+            '{{ sentiment.sentiment }}',
+        {% endfor %}
+    ];
+
+    var overallSentimentChart = new Chart(document.getElementById('overallSentimentChart'), {
+        type: 'pie',
+        data: {
+            labels: overallSentimentLabels,
+            datasets: [{
+                data: overallSentimentData,
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.8)',
+                    'rgba(54, 162, 235, 0.8)',
+                    'rgba(255, 206, 86, 0.8)',
+                    'rgba(75, 192, 192, 0.8)',
+                    'rgba(153, 102, 255, 0.8)',
+                    'rgba(255, 159, 64, 0.8)'
+                ],
+                borderWidth: 1
+            }]
+        }
+    });
+
+    var detailsButton = document.getElementById('detailsButton');
+    var productSentimentDetails = document.getElementById('productSentimentDetails');
+
+    detailsButton.addEventListener('click', function() {
+        if (productSentimentDetails.style.display === 'none') {
+            productSentimentDetails.style.display = 'block';
+        } else {
+            productSentimentDetails.style.display = 'none';
+        }
+    });
+
+    {% for product in product_sentiment_data %}
+        {% if product.sadness > 0 or product.joy > 0 or product.love > 0 or product.anger > 0 or product.fear > 0 or product.surprise > 0 %}
+            var productSentimentData_{{ product.id }} = [
+                {{ product.sadness }},
+                {{ product.joy }},
+                {{ product.love }},
+                {{ product.anger }},
+                {{ product.fear }},
+                {{ product.surprise }}
+            ];
+
+            var productSentimentChart_{{ product.id }} = new Chart(document.getElementById('productSentimentChart_{{ product.id }}'), {
+                type: 'pie',
+                data: {
+                    labels: ['Sadness', 'Joy', 'Love', 'Anger', 'Fear', 'Surprise'],
+                    datasets: [{
+                        data: productSentimentData_{{ product.id }},
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.8)',
+                            'rgba(54, 162, 235, 0.8)',
+                            'rgba(255, 206, 86, 0.8)',
+                            'rgba(75, 192, 192, 0.8)',
+                            'rgba(153, 102, 255, 0.8)',
+                            'rgba(255, 159, 64, 0.8)'
+                        ],
+                        borderWidth: 1
+                    }]
+                }
+            });
+        {% endif %}
+    {% endfor %}
+
+    var clusterData = {{ customer_segmentation.data|safe }};
+    var clusterLabels = {{ customer_segmentation.clusters|safe }};
+
+    var clusterChart = new Chart(document.getElementById('clusterChart'), {
+        type: 'scatter',
+        data: {
+            datasets: clusterLabels.map(function(label) {
+                return {
+                    label: 'Cluster ' + label,
+                    data: clusterData.filter(function(customer) {
+                        return customer.cluster === label;
+                    }).map(function(customer) {
+                        return {
+                            x: customer.pca_x,
+                            y: customer.pca_y,
+                        };
+                    }),
+                    backgroundColor: getColor(label)
+                };
+            })
+        },
+        options: {
+            scales: {
+                x: {
+                    type: 'linear',
+                    position: 'bottom'
+                },
+                y: {
+                    type: 'linear',
+                    position: 'left'
+                },
+            }
+        }
+    });
+
+    function getColor(label) {
+        var colors = ['rgba(255, 99, 132, 0.8)', 'rgba(54, 162, 235, 0.8)', 'rgba(255, 206, 86, 0.8)', 'rgba(75, 192, 192, 0.8)'];
+        return colors[label];
+    }
 </script>
 {% endblock %}

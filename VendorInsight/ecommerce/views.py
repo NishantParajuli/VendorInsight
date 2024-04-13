@@ -24,6 +24,7 @@ from sklearn.cluster import KMeans
 from xgboost import XGBRegressor
 from django.db.models import Count
 from django.core.cache import cache
+from sklearn.decomposition import PCA
 
 from transformers import pipeline
 classifier = pipeline("text-classification",
@@ -347,10 +348,25 @@ def vendor_analytics(request):
             ('cat', OneHotEncoder(), ['gender', 'most_ordered_category'])
         ])
     X_processed = preprocessor.fit_transform(features_df)
+    X_processed = X_processed.toarray()  # Convert sparse matrix to dense matrix
 
     kmeans = KMeans(n_clusters=4, random_state=42)
     clusters = kmeans.fit_predict(X_processed)
     features_df['cluster'] = clusters
+
+    # Perform PCA for 2D visualization
+    pca = PCA(n_components=3)
+    X_pca = pca.fit_transform(X_processed)
+    features_df['pca_x'] = X_pca[:, 0]
+    features_df['pca_y'] = X_pca[:, 1]
+
+    cluster_averages = features_df.groupby('cluster').agg({
+        'age': 'mean',
+        'total_order_amount': 'mean',
+        'order_frequency': 'mean',
+        'gender': lambda x: x.mode()[0],
+        'most_ordered_category': lambda x: x.mode()[0]
+    }).reset_index()
 
     cache_key = f'vendor_analytics_{request.user.id}'
 
@@ -363,7 +379,7 @@ def vendor_analytics(request):
 
         for category in categories:
             order_details = OrderDetails.objects.filter(
-                product__user=vendor, product__categories=category)
+                product__categories=category)
             sales_data = pd.DataFrame(list(order_details.values(
                 'order__order_date', 'price', 'quantity')))
             sales_data['order__order_date'] = pd.to_datetime(
@@ -411,14 +427,16 @@ def vendor_analytics(request):
                 'month': future_dates.month
             })
             future_predictions = xgb_model.predict(future_data)
-            print(future_predictions.tolist())
+            future_predictions = [
+                int(np.ceil(prediction)) + 1 for prediction in future_predictions]
 
             inventory_data.append({
+                'product_id': product.id,
                 'product_name': product.name,
                 'current_stock': product.inventory.current_stock,
                 'safety_stock_level': product.inventory.safety_stock_level,
                 'reorder_point': product.inventory.reorder_point,
-                'future_predictions': future_predictions.tolist()
+                'future_predictions': future_predictions,
             })
 
             analytics_data = {
@@ -428,10 +446,20 @@ def vendor_analytics(request):
 
             cache.set(cache_key, analytics_data, timeout=86400)
 
+    # Show 10 products per page
+    paginator = Paginator(analytics_data['inventory_data'], 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
     context = {
-        'customer_segmentation': features_df.to_dict(orient='records'),
+        'customer_segmentation': {
+            'data': features_df[['pca_x', 'pca_y', 'cluster']].to_dict(orient='records'),
+            'clusters': features_df['cluster'].unique().tolist()
+        },
         'inventory_data': analytics_data['inventory_data'],
         'category_sales_predictions': analytics_data['category_sales_predictions'],
+        'cluster_averages': cluster_averages.to_dict(orient='records'),
+        'page_obj': page_obj,
     }
 
     # Aggregate sentiment data for each product
