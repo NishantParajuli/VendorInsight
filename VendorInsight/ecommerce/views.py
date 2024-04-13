@@ -23,6 +23,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.cluster import KMeans
 from xgboost import XGBRegressor
 from django.db.models import Count
+from django.core.cache import cache
 
 from transformers import pipeline
 classifier = pipeline("text-classification",
@@ -315,26 +316,6 @@ def vendor_analytics(request):
     vendor = request.user
     products = vendor.products.all()
 
-    # Sales prediction using Auto ARIMA
-    order_details = OrderDetails.objects.filter(product__user=vendor)
-    sales_data = pd.DataFrame(list(order_details.values(
-        'order__order_date', 'price', 'quantity')))
-    sales_data['order__order_date'] = pd.to_datetime(
-        sales_data['order__order_date'])
-    sales_data['sales'] = sales_data['price'] * sales_data['quantity']
-    ts_data = sales_data.groupby(pd.Grouper(key='order__order_date', freq='D'))[
-        'sales'].sum()
-
-    ts_data_log = np.log(ts_data.astype(float) + 1)
-    model = auto_arima(ts_data_log, seasonal=True,
-                       m=12, suppress_warnings=True)
-
-    last_date = ts_data.index[-1]
-    future_dates_sales = pd.date_range(
-        start=last_date + pd.Timedelta(days=1), periods=30, freq='D')
-    future_predictions_sales = np.exp(
-        model.predict(n_periods=len(future_dates_sales)))
-
     # Customer segmentation using K-means
     customer_orders = Order.objects.filter(orderdetails__product__user=vendor).values('user').annotate(
         total_spent=Sum(F('orderdetails__price') *
@@ -371,45 +352,86 @@ def vendor_analytics(request):
     clusters = kmeans.fit_predict(X_processed)
     features_df['cluster'] = clusters
 
-    # Inventory prediction using XGBoost
-    inventory_data = []
-    for product in products:
-        daily_sales = pd.DataFrame(list(OrderDetails.objects.filter(
-            product=product).values('order__order_date', 'quantity')))
-        daily_sales['order__order_date'] = pd.to_datetime(
-            daily_sales['order__order_date'])
-        daily_sales['day_of_week'] = daily_sales['order__order_date'].dt.dayofweek
-        daily_sales['month'] = daily_sales['order__order_date'].dt.month
+    cache_key = f'vendor_analytics_{request.user.id}'
 
-        X = daily_sales[['day_of_week', 'month']]
-        y = daily_sales['quantity']
+    analytics_data = cache.get(cache_key)
 
-        xgb_model = XGBRegressor(objective='reg:squarederror',
-                                 n_estimators=100, learning_rate=0.1, random_state=42)
-        xgb_model.fit(X, y)
+    if analytics_data is None:
+        # Sales prediction using ARIMA
+        categories = Category.objects.all()
+        category_sales_predictions = {}
 
-        future_dates = pd.date_range(start=daily_sales['order__order_date'].max(
-        ) + pd.Timedelta(days=1), periods=7, freq='D')
-        future_data = pd.DataFrame({
-            'day_of_week': future_dates.dayofweek,
-            'month': future_dates.month
-        })
-        future_predictions = xgb_model.predict(future_data)
-        print(future_predictions.tolist())
+        for category in categories:
+            order_details = OrderDetails.objects.filter(
+                product__user=vendor, product__categories=category)
+            sales_data = pd.DataFrame(list(order_details.values(
+                'order__order_date', 'price', 'quantity')))
+            sales_data['order__order_date'] = pd.to_datetime(
+                sales_data['order__order_date'])
+            sales_data['sales'] = sales_data['price'] * sales_data['quantity']
+            ts_data = sales_data.groupby(pd.Grouper(key='order__order_date', freq='D'))[
+                'sales'].sum()
 
-        inventory_data.append({
-            'product_name': product.name,
-            'current_stock': product.inventory.current_stock,
-            'safety_stock_level': product.inventory.safety_stock_level,
-            'reorder_point': product.inventory.reorder_point,
-            'future_predictions': future_predictions.tolist()
-        })
+            ts_data_log = np.log(ts_data.astype(float) + 1)
+            model = auto_arima(ts_data_log, seasonal=True,
+                               m=12, suppress_warnings=True)
+
+            last_date = ts_data.index[-1]
+            future_dates_sales = pd.date_range(
+                start=last_date + pd.Timedelta(days=1), periods=30, freq='D')
+            future_predictions_sales = np.exp(
+                model.predict(n_periods=len(future_dates_sales)))
+
+            category_sales_predictions[category.name] = {
+                'dates': future_dates_sales.strftime('%Y-%m-%d').tolist(),
+                'predictions': future_predictions_sales.tolist()
+            }
+
+        # Inventory prediction using XGBoost
+        inventory_data = []
+        for product in products:
+            daily_sales = pd.DataFrame(list(OrderDetails.objects.filter(
+                product=product).values('order__order_date', 'quantity')))
+            daily_sales['order__order_date'] = pd.to_datetime(
+                daily_sales['order__order_date'])
+            daily_sales['day_of_week'] = daily_sales['order__order_date'].dt.dayofweek
+            daily_sales['month'] = daily_sales['order__order_date'].dt.month
+
+            X = daily_sales[['day_of_week', 'month']]
+            y = daily_sales['quantity']
+
+            xgb_model = XGBRegressor(objective='reg:squarederror',
+                                     n_estimators=100, learning_rate=0.1, random_state=42)
+            xgb_model.fit(X, y)
+
+            future_dates = pd.date_range(start=daily_sales['order__order_date'].max(
+            ) + pd.Timedelta(days=1), periods=7, freq='D')
+            future_data = pd.DataFrame({
+                'day_of_week': future_dates.dayofweek,
+                'month': future_dates.month
+            })
+            future_predictions = xgb_model.predict(future_data)
+            print(future_predictions.tolist())
+
+            inventory_data.append({
+                'product_name': product.name,
+                'current_stock': product.inventory.current_stock,
+                'safety_stock_level': product.inventory.safety_stock_level,
+                'reorder_point': product.inventory.reorder_point,
+                'future_predictions': future_predictions.tolist()
+            })
+
+            analytics_data = {
+                'inventory_data': inventory_data,
+                'category_sales_predictions': category_sales_predictions,
+            }
+
+            cache.set(cache_key, analytics_data, timeout=86400)
 
     context = {
-        'sales_dates': future_dates_sales.strftime('%Y-%m-%d').tolist(),
-        'sales_predictions': future_predictions_sales.tolist(),
         'customer_segmentation': features_df.to_dict(orient='records'),
-        'inventory_data': inventory_data
+        'inventory_data': analytics_data['inventory_data'],
+        'category_sales_predictions': analytics_data['category_sales_predictions'],
     }
 
     # Aggregate sentiment data for each product

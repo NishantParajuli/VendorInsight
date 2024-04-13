@@ -2,8 +2,13 @@
 <h2>Vendor Analytics</h2>
 
 <div>
-    <h3>Sales Prediction</h3>
-    <canvas id="salesChart"></canvas>
+    <h3>Sales Prediction by Category</h3>
+    {% for category, data in category_sales_predictions.items %}
+        <div>
+            <h4>{{ category }}</h4>
+            <canvas id="salesChart_{{ category }}"></canvas>
+        </div>
+    {% endfor %}
 </div>
 <h4>Product Sentiment Analysis</h4>
 {% for product in product_sentiment_data %}
@@ -85,29 +90,32 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    // Sales prediction chart
-    var salesDates = {{ sales_dates|safe }};
-    var salesPredictions = {{ sales_predictions|safe }};
-    var salesChart = new Chart(document.getElementById('salesChart'), {
-        type: 'line',
-        data: {
-            labels: salesDates,
-            datasets: [{
-                label: 'Sales Predictions',
-                data: salesPredictions,
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                borderColor: 'rgba(75, 192, 192, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            scales: {
-                y: {
-                    beginAtZero: true
+    
+
+    // Sales prediction charts for each category
+    {% for category, data in category_sales_predictions.items %}
+        var salesDates_{{ category }} = {{ data.dates|safe }};
+        var salesPredictions_{{ category }} = {{ data.predictions|safe }};
+        var salesChart_{{ category }} = new Chart(document.getElementById('salesChart_{{ category }}'), {
+            type: 'line',
+            data: {
+                labels: salesDates_{{ category }},
+                datasets: [{
+                    label: 'Sales Predictions for {{ category }}',
+                    data: salesPredictions_{{ category }},
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
                 }
             }
-        }
-    });
-
+        });
+    {% endfor %}
 </script>
 {% endblock %}
