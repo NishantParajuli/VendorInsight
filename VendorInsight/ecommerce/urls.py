@@ -1,6 +1,6 @@
 from django.urls import path
-from .views import register, home, vendor_home, add_product, CustomLoginView, product_detail, add_to_cart, add_to_wishlist, cart, vendor_analytics, vendor_products
-from django.contrib.auth.views import LoginView, LogoutView
+from .views import register, home, vendor_home, add_product, CustomLoginView, product_detail, add_to_cart, add_to_wishlist, cart, vendor_analytics, vendor_products, wishlist, profile
+from django.contrib.auth.views import LogoutView
 
 urlpatterns = [
     path('register/', register, name='register'),
@@ -19,5 +19,6 @@ urlpatterns += [
          add_to_wishlist, name='add_to_wishlist'),
     path('cart/', cart, name='cart'),
     path('vendor/products/', vendor_products, name='vendor_products'),
-
+    path('wishlist/', wishlist, name='wishlist'),
+    path('profile/', profile, name='profile'),
 ]

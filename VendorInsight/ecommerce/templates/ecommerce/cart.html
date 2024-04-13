@@ -1,19 +1,59 @@
+{% extends 'base.html' %}
+
 {% block content %}
-<h2>Shopping Cart</h2>
-{% if cart_items %}
-    <ul>
-    {% for item in cart_items %}
-        <li>
-            {{ item.product.name }} - Quantity: {{ item.quantity }} - Price: ${{ item.product.price }}
-        </li>
-    {% endfor %}
-    </ul>
-    <p>Total Price: ${{ total_price }}</p>
-    <form method="post">
-        {% csrf_token %}
-        <button type="submit">Place Order</button>
-    </form>
-{% else %}
+<div class="container my-5">
+    <h2 class="mb-4">Shopping Cart</h2>
+    {% if cart_items %}
+    <div class="table-responsive">
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th>Quantity</th>
+                    <th>Price</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in cart_items %}
+                <tr>
+                    <td>{{ item.product.name }}</td>
+                    <td>{{ item.quantity }}</td>
+                    <td>${{ item.product.price }}</td>
+                    <td>
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="remove_item">
+                            <input type="hidden" name="item_id" value="{{ item.id }}">
+                            <button type="submit" class="btn btn-sm btn-danger">Remove</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="row justify-content-end">
+        <div class="col-md-4">
+            <p class="text-right">Total Price: ${{ total_price }}</p>
+        </div>
+    </div>
+    <div class="row justify-content-end">
+        <div class="col-md-4">
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="place_order">
+                <button type="submit" class="btn btn-primary btn-block">Place Order</button>
+            </form>
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="clear_cart">
+                <button type="submit" class="btn btn-danger btn-block mt-2">Cancel Cart</button>
+            </form>
+        </div>
+    </div>
+    {% else %}
     <p>Your cart is empty.</p>
-{% endif %}
+    {% endif %}
+</div>
 {% endblock %}

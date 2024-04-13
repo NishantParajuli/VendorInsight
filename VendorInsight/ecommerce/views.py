@@ -1,7 +1,7 @@
 from django.shortcuts import render,  redirect, get_object_or_404
 from django.contrib.auth import login, authenticate
 from django.contrib.auth.decorators import login_required
-from .forms import UserRegisterForm, ProductForm, ReviewForm, SalesFilterForm
+from .forms import UserRegisterForm, ProductForm, ReviewForm, SalesFilterForm, UserUpdateForm, ProfileUpdateForm
 from django.contrib import messages
 from .models import UserProfile, Product, Category, ProductReview, Cart, CartItem, Wishlist, Order, OrderDetails, User, Discount
 from django.http import HttpResponseForbidden
@@ -11,7 +11,7 @@ from django.utils.decorators import method_decorator
 from django.utils import timezone
 from datetime import timedelta
 from django.core.paginator import Paginator
-from decimal import Decimal, InvalidOperation
+from decimal import InvalidOperation
 from .recommendation_engine import recommend_products
 from django.core.exceptions import ValidationError
 from django import forms
@@ -25,6 +25,7 @@ from xgboost import XGBRegressor
 from django.db.models import Count
 from django.core.cache import cache
 from sklearn.decomposition import PCA
+
 
 from transformers import pipeline
 classifier = pipeline("text-classification",
@@ -216,15 +217,28 @@ def cart(request):
                       item.quantity for item in cart_items)
 
     if request.method == 'POST':
-        # Process the order
-        order = Order.objects.create(
-            user=request.user, total_amount=total_price)
-        for item in cart_items:
-            OrderDetails.objects.create(
-                order=order, product=item.product, quantity=item.quantity, price=item.product.price)
-        cart_items.delete()
-        messages.success(request, 'Order placed successfully!')
-        return redirect('home')
+        action = request.POST.get('action')
+        if action == 'place_order':
+            # Process the order
+            order = Order.objects.create(
+                user=request.user, total_amount=total_price)
+            for item in cart_items:
+                OrderDetails.objects.create(
+                    order=order, product=item.product, quantity=item.quantity, price=item.product.price)
+            cart_items.delete()
+            messages.success(request, 'Order placed successfully!')
+            return redirect('home')
+        elif action == 'remove_item':
+            item_id = request.POST.get('item_id')
+            cart_item = get_object_or_404(
+                CartItem, id=item_id, cart__user=request.user)
+            cart_item.delete()
+            messages.success(request, 'Item removed from cart!')
+            return redirect('cart')
+        elif action == 'clear_cart':
+            cart_items.delete()
+            messages.success(request, 'Cart cleared!')
+            return redirect('cart')
 
     context = {
         'cart_items': cart_items,
@@ -594,3 +608,45 @@ def vendor_products(request):
         'discount_types': discount_types,
     }
     return render(request, 'ecommerce/vendor_products.html', context)
+
+
+@login_required
+def wishlist(request):
+    wishlist = Wishlist.objects.filter(user=request.user).first()
+    wishlist_products = wishlist.products.all() if wishlist else []
+
+    if request.method == 'POST':
+        product_id = request.POST.get('product_id')
+        if product_id:
+            product = get_object_or_404(Product, pk=product_id)
+            if wishlist:
+                wishlist.products.remove(product)
+                messages.success(request, 'Product removed from wishlist!')
+            return redirect('wishlist')
+
+    context = {
+        'wishlist_products': wishlist_products,
+    }
+    return render(request, 'ecommerce/wishlist.html', context)
+
+
+@login_required
+def profile(request):
+    if request.method == 'POST':
+        user_form = UserUpdateForm(request.POST, instance=request.user)
+        profile_form = ProfileUpdateForm(
+            request.POST, instance=request.user.userprofile)
+        if user_form.is_valid() and profile_form.is_valid():
+            user_form.save()
+            profile_form.save()
+            messages.success(request, 'Your profile has been updated!')
+            return redirect('profile')
+    else:
+        user_form = UserUpdateForm(instance=request.user)
+        profile_form = ProfileUpdateForm(instance=request.user.userprofile)
+
+    context = {
+        'user_form': user_form,
+        'profile_form': profile_form,
+    }
+    return render(request, 'ecommerce/profile.html', context)
