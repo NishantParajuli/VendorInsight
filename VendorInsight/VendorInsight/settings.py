@@ -138,3 +138,10 @@ LOGIN_REDIRECT_URL = 'home'  # or wherever you want users to go after logging in
 LOGOUT_REDIRECT_URL = 'login'  # or your site's login page
 
 AUTH_USER_MODEL = 'ecommerce.User'
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        'LOCATION': BASE_DIR / 'cache',
+    }
+}
