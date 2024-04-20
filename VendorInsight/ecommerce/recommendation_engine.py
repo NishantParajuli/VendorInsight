@@ -2,7 +2,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import TfidfVectorizer
 from .models import Product, UserInteraction, User
 import numpy as np
-from django.db.models import Case, When, Value, IntegerField
 
 
 def get_product_features():
@@ -48,28 +47,46 @@ def recommend_products_content_based(product_id, num_recommendations=5):
     return Product.objects.filter(id__in=recommended_product_ids)
 
 
-def recommend_products(user_id, num_recommendations=5):
-    content_based_recommendations = recommend_products_content_based(
-        user_id, num_recommendations)
-
+def recommend_products_collaborative(user_id, num_recommendations=5):
     user_product_matrix, users, products = get_user_product_matrix()
     user_index = list(users).index(User.objects.get(id=user_id))
+
+    print("User index:", user_index)
+    print("User interactions:", user_product_matrix[user_index])
+
+    if user_product_matrix[user_index].sum() == 0:
+        print("User has no interactions")
+        return []
 
     user_similarities = cosine_similarity(user_product_matrix)
     similar_users_indices = user_similarities[user_index].argsort()[
         ::-1][1:num_recommendations+1]
+
+    print("Similar user indices:", similar_users_indices)
 
     similar_users_product_scores = user_product_matrix[similar_users_indices].sum(
         axis=0)
     top_product_indices = similar_users_product_scores.argsort()[
         ::-1][:num_recommendations]
 
+    print("Top product indices:", top_product_indices)
+
     collaborative_recommendations = [products[i]
                                      for i in top_product_indices.tolist()]
+    return collaborative_recommendations
 
-    combined_recommendations = list(
-        content_based_recommendations) + list(collaborative_recommendations)
-    combined_recommendations = list(dict.fromkeys(combined_recommendations))[
-        :num_recommendations]
 
-    return combined_recommendations
+def recommend_products(product_id, user_id=None, num_recommendations=5):
+    content_based_recommendations = recommend_products_content_based(
+        product_id, num_recommendations)
+
+    if user_id:
+        collaborative_recommendations = recommend_products_collaborative(
+            user_id, num_recommendations)
+        combined_recommendations = list(
+            content_based_recommendations) + list(collaborative_recommendations)
+        combined_recommendations = list(dict.fromkeys(combined_recommendations))[
+            :num_recommendations]
+        return combined_recommendations
+    else:
+        return content_based_recommendations

@@ -12,7 +12,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.core.paginator import Paginator
 from decimal import InvalidOperation
-from .recommendation_engine import recommend_products
+from .recommendation_engine import recommend_products, recommend_products_collaborative
 from django.core.exceptions import ValidationError
 from django import forms
 import pandas as pd
@@ -108,7 +108,7 @@ def home(request):
         elif sort_by == 'price_desc':
             products = products.order_by('-price')
 
-    recommended_products = recommend_products(request.user.id, 5)
+    recommended_products = recommend_products_collaborative(request.user.id, 5)
 
     # Pagination
     paginator = Paginator(products, 9)  # Show 9 products per page
@@ -230,7 +230,10 @@ def cart(request):
         if action == 'place_order':
             # Process the order
             order = Order.objects.create(
-                user=request.user, total_amount=total_price)
+                user=request.user,
+                total_amount=total_price,
+                order_date=timezone.now(),  # Set the current date and time as the order date
+                status='Pending')  # Set the initial status of the order
             for item in cart_items:
                 OrderDetails.objects.create(
                     order=order, product=item.product, quantity=item.quantity, price=item.product.price)
@@ -659,3 +662,14 @@ def profile(request):
         'profile_form': profile_form,
     }
     return render(request, 'ecommerce/profile.html', context)
+
+
+@login_required
+def order_history(request):
+    orders = Order.objects.filter(user=request.user).order_by('-order_date')
+
+    context = {
+        'orders': orders,
+    }
+
+    return render(request, 'ecommerce/order_history.html', context)
