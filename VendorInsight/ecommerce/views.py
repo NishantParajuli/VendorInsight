@@ -3,7 +3,7 @@ from django.contrib.auth import login, authenticate
 from django.contrib.auth.decorators import login_required
 from .forms import UserRegisterForm, ProductForm, ReviewForm, SalesFilterForm, UserUpdateForm, ProfileUpdateForm
 from django.contrib import messages
-from .models import UserProfile, Product, Category, ProductReview, Cart, CartItem, Wishlist, Order, OrderDetails, User, Discount
+from .models import UserProfile, Product, Category, ProductReview, Cart, CartItem, Wishlist, Order, OrderDetails, User, Discount, UserInteraction
 from django.http import HttpResponseForbidden
 from django.db.models import Q, Sum, F
 from django.contrib.auth.views import LoginView
@@ -108,6 +108,8 @@ def home(request):
         elif sort_by == 'price_desc':
             products = products.order_by('-price')
 
+    recommended_products = recommend_products(request.user.id, 5)
+
     # Pagination
     paginator = Paginator(products, 9)  # Show 9 products per page
     page = request.GET.get('page')
@@ -116,6 +118,7 @@ def home(request):
     context = {
         'products': products,
         'categories': categories,
+        'recommended_products': recommended_products,
     }
     return render(request, 'ecommerce/home.html', context)
 
@@ -167,6 +170,8 @@ def product_detail(request, product_id):
 
     product.total_views += 1
     product.save()
+    UserInteraction.objects.create(
+        user=request.user, product=product, interaction_type='view')
     recommended_products = recommend_products(product_id, 5)
 
     context = {
@@ -192,6 +197,8 @@ def add_to_cart(request, product_id):
     else:
         cart_item.quantity += quantity
     cart_item.save()
+    UserInteraction.objects.create(
+        user=request.user, product=product, interaction_type='purchase')
 
     product.inventory.current_stock -= quantity
     product.inventory.save()
@@ -205,6 +212,8 @@ def add_to_wishlist(request, product_id):
     product = get_object_or_404(Product, pk=product_id)
     wishlist, _ = Wishlist.objects.get_or_create(user=request.user)
     wishlist.products.add(product)
+    UserInteraction.objects.create(
+        user=request.user, product=product, interaction_type='wishlist')
     messages.success(request, 'Product added to wishlist!')
     return redirect('product_detail', product_id=product.id)
 

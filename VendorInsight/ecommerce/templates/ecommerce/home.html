@@ -46,6 +46,33 @@
         </div>
     </form>
 
+    {% if recommended_products %}
+        <div class="row mt-4">
+            <div class="col">
+                <h3>Recommended for You</h3>
+                <div class="row">
+                    {% for product in recommended_products %}
+                    <div class="col-md-4 mb-4">
+                        <div class="card">
+                            <img src="{% if product.productimage_set.first %}{{ product.productimage_set.first.image.url }}{% endif %}" class="card-img-top" alt="{{ product.name }}">
+                            <div class="card-body">
+                                <h5 class="card-title">{{ product.name }}</h5>
+                                <p class="card-text">{{ product.description }}</p>
+                                <p class="card-text">${{ product.price }}</p>
+                                <a href="{% url 'product_detail' product.id %}" class="btn btn-primary">View Product</a>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="col">
+                        <p>No recommended products found.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
     <div class="row mt-4">
         {% for product in products %}
         <div class="col-md-4 mb-4">
