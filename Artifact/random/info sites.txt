@@ -1,0 +1,1 @@
+https://rpubs.com/juliogarza/SalesForecasting#:~:text=ARIMA%20is%20a%20traditional%20method,seasonal%20effects%20and%20missing%20values.

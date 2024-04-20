@@ -2,6 +2,7 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from .models import UserProfile, Product, Category, Inventory, Discount, ProductImage, ProductReview
+from django.contrib.auth import get_user_model
 
 
 class UserRegisterForm(UserCreationForm):
@@ -11,18 +12,23 @@ class UserRegisterForm(UserCreationForm):
     phone_number = forms.CharField(max_length=15)
     address = forms.CharField(max_length=100)
     is_vendor = forms.BooleanField(required=False, label='Register as vendor')
+    gender = forms.ChoiceField(
+        choices=[('M', 'Male'), ('F', 'Female'), ('O', 'Other')])
+    date_of_birth = forms.DateField(
+        widget=forms.DateInput(attrs={'type': 'date'}))
 
     class Meta:
         model = User
         fields = ['username', 'email', 'password1', 'password2',
-                  'first_name', 'last_name', 'phone_number', 'address', 'is_vendor']
+                  'first_name', 'last_name', 'phone_number', 'address', 'is_vendor', 'gender', 'date_of_birth']
 
     def save(self, commit=True):
         user = super().save(commit=False)
         if commit:
             user.save()
             user_profile = UserProfile(
-                user=user, is_vendor=self.cleaned_data['is_vendor'])
+                user=user, is_vendor=self.cleaned_data['is_vendor'], gender=self.cleaned_data['gender'],
+                date_of_birth=self.cleaned_data['date_of_birth'])
             user_profile.save()
         return user
 
@@ -54,9 +60,23 @@ class ProductForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         # Extract user from kwargs and remove it
         self.user = kwargs.pop('user', None)
+        self.instance = kwargs.pop('instance', None)
         super(ProductForm, self).__init__(*args, **kwargs)
         self.fields['categories'].widget = forms.CheckboxSelectMultiple()
         self.fields['categories'].queryset = Category.objects.all()
+
+        if self.instance.pk:
+            self.fields['current_stock'].initial = self.instance.inventory.current_stock
+            self.fields['safety_stock_level'].initial = self.instance.inventory.safety_stock_level
+            self.fields['reorder_point'].initial = self.instance.inventory.reorder_point
+
+            self.fields['images'].initial = self.instance.productimage_set.all()
+
+            if self.instance.discount:
+                self.fields['discount_type'].initial = self.instance.discount.discount_type
+                self.fields['discount_value'].initial = self.instance.discount.discount_value
+                self.fields['start_date'].initial = self.instance.discount.start_date
+                self.fields['end_date'].initial = self.instance.discount.end_date
 
     def save(self, commit=True):
         product = super().save(commit=False)
@@ -91,6 +111,9 @@ class ProductForm(forms.ModelForm):
                 self.save_m2m()  # Save many-to-many data for the form.
 
                 if 'images' in self.files:
+                    # Remove existing images
+                    self.instance.productimage_set.all().delete()
+                    # Add new images
                     for image in self.files.getlist('images'):
                         ProductImage.objects.create(
                             product=product, image=image)
@@ -105,13 +128,29 @@ class ReviewForm(forms.ModelForm):
 
 class SalesFilterForm(forms.Form):
     RANGE_CHOICES = (
+        ('all_time', 'All Time'),
         ('7_days', 'Last 7 Days'),
         ('1_month', 'Last 1 Month'),
         ('3_months', 'Last 3 Months'),
         ('6_months', 'Last 6 Months'),
         ('1_year', 'Last 1 Year'),
         ('5_years', 'Last 5 Years'),
-        ('all_time', 'All Time'),
     )
 
     range = forms.ChoiceField(choices=RANGE_CHOICES, required=False)
+
+
+User = get_user_model()
+
+
+class UserUpdateForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ['username', 'email', 'first_name',
+                  'last_name', 'phone_number', 'address']
+
+
+class ProfileUpdateForm(forms.ModelForm):
+    class Meta:
+        model = UserProfile
+        fields = ['gender', 'date_of_birth']

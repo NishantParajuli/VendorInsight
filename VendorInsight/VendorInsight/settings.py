@@ -55,7 +55,9 @@ ROOT_URLCONF = 'VendorInsight.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [
+            BASE_DIR / "templates"
+        ],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -76,8 +78,12 @@ WSGI_APPLICATION = 'VendorInsight.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'VendorInsight',
+        'USER': 'postgres',
+        'PASSWORD': 'zxasqw123',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 
@@ -134,3 +140,12 @@ MEDIA_URL = "/uploads/"
 
 LOGIN_REDIRECT_URL = 'home'  # or wherever you want users to go after logging in
 LOGOUT_REDIRECT_URL = 'login'  # or your site's login page
+
+AUTH_USER_MODEL = 'ecommerce.User'
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+        'LOCATION': BASE_DIR / 'cache',
+    }
+}

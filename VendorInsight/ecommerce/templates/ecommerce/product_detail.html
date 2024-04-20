@@ -1,36 +1,73 @@
+{% extends 'base.html' %}
+
 {% block content %}
-<h2>{{ product.name }}</h2>
-<!-- Display product details -->
-<p>{{ product.description }}</p>
-<p>Price: ${{ product.price }}</p>
-<!-- Display reviews -->
-<h3>Reviews</h3>
-{% for review in reviews %}
-    <p>
-        <strong>Reviewer:</strong> {{ review.user.first_name }}<br>
-        <strong>Rating:</strong> {{ review.rating }}<br>
-        <strong>Comment:</strong> {{ review.comment }}
-    </p>
-{% empty %}
-    <p>No reviews yet.</p>
-{% endfor %}
-
-<form method="post" action="{% url 'add_to_cart' product.id %}">
-    {% csrf_token %}
-    <input type="number" name="quantity" value="1" min="1" required>
-    <button type="submit">Add to Cart</button>
-</form>
-
-<form method="post" action="{% url 'add_to_wishlist' product.id %}">
-    {% csrf_token %}
-    <button type="submit">Add to Wishlist</button>
-</form>
-
-<!-- Add a review form -->
-<h4>Add a Review</h4>
-<form method="post">
-    {% csrf_token %}
-    {{ review_form.as_p }}
-    <button type="submit">Submit Review</button>
-</form>
+<div class="row">
+    <div class="col-md-6">
+        <img src="{% if product.productimage_set.first %}{{ product.productimage_set.first.image.url }}{% endif %}" class="img-fluid" alt="{{ product.name }}">
+    </div>
+    <div class="col-md-6">
+        <h2>{{ product.name }}</h2>
+        <p>{{ product.description }}</p>
+        <p>Price: ${{ product.price }}</p>
+        <form method="post" action="{% url 'add_to_cart' product.id %}">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="quantity">Quantity:</label>
+                <input type="number" name="quantity" value="1" min="1" required class="form-control">
+            </div>
+            <button type="submit" class="btn btn-primary">Add to Cart</button>
+        </form>
+        <form method="post" action="{% url 'add_to_wishlist' product.id %}" class="mt-2">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-secondary">Add to Wishlist</button>
+        </form>
+    </div>
+</div>
+<hr>
+<div class="row">
+    <div class="col">
+        <h3>Reviews</h3>
+        {% for review in reviews %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Reviewer: {{ review.user.first_name }}</h5>
+                <p class="card-text">Rating: {{ review.rating }}</p>
+                <p class="card-text">Comment: {{ review.comment }}</p>
+            </div>
+        </div>
+        {% empty %}
+        <p>No reviews yet.</p>
+        {% endfor %}
+        <h4>Add a Review</h4>
+        <form method="post">
+            {% csrf_token %}
+            {{ review_form.as_p }}
+            <button type="submit" class="btn btn-primary">Submit Review</button>
+        </form>
+    </div>
+</div>
+<hr>
+<div class="row">
+    <div class="col">
+        <h3>Recommended Products</h3>
+        <div class="row">
+            {% for product in recommended_products %}
+            <div class="col-md-4 mb-4">
+                <div class="card">
+                    <img src="{% if product.productimage_set.first %}{{ product.productimage_set.first.image.url }}{% endif %}" class="card-img-top" alt="{{ product.name }}">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ product.name }}</h5>
+                        <p class="card-text">{{ product.description }}</p>
+                        <a href="{% url 'product_detail' product.id %}" class="btn btn-primary">View Product</a>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col">
+                <p>No recommended products found.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
 {% endblock %}

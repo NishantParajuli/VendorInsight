@@ -1,8 +1,95 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+
 {% block content %}
-<h2>Add New Product</h2>
-<form method="post" enctype="multipart/form-data">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit">Add Product</button>
-</form>
+<div class="container my-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <h2 class="mb-4">Add New Product</h2>
+      <form method="post" enctype="multipart/form-data" class="card shadow-sm">
+        {% csrf_token %}
+        <div class="card-body">
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <div class="mb-3">
+                {{ form.name.label_tag }}
+                {{ form.name|add_class:"form-control" }}
+                {{ form.name.errors }}
+              </div>
+              <div class="mb-3">
+                {{ form.price.label_tag }}
+                {{ form.price|add_class:"form-control" }}
+                {{ form.price.errors }}
+              </div>
+              <div class="mb-3">
+                {{ form.current_stock.label_tag }}
+                {{ form.current_stock|add_class:"form-control" }}
+                {{ form.current_stock.errors }}
+              </div>
+              <div class="mb-3">
+                {{ form.reorder_point.label_tag }}
+                {{ form.reorder_point|add_class:"form-control" }}
+                {{ form.reorder_point.errors }}
+              </div>
+              <div class="mb-3">
+                {{ form.discount_value.label_tag }}
+                {{ form.discount_value|add_class:"form-control" }}
+                {{ form.discount_value.errors }}
+              </div>
+              <div class="mb-3">
+                {{ form.end_date.label_tag }}
+                {{ form.end_date|add_class:"form-control" }}
+                {{ form.end_date.errors }}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                {{ form.description.label_tag }}
+                {{ form.description|add_class:"form-control" }}
+                {{ form.description.errors }}
+              </div>
+              <div class="mb-3">
+                {{ form.categories.label_tag }}
+                <select multiple class="form-select" style="height: 150px;" {% if form.categories.field.required %}required{% endif %}>
+                  {% for value, label in form.categories.field.choices %}
+                    <option value="{{ value }}" {% if value in form.categories.value %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+                {{ form.categories.errors }}
+              </div>
+              <div class="mb-3">
+                {{ form.safety_stock_level.label_tag }}
+                {{ form.safety_stock_level|add_class:"form-control" }}
+                {{ form.safety_stock_level.errors }}
+              </div>
+              <div class="mb-3">
+                {{ form.discount_type.label_tag }}
+                <select class="form-select" {% if form.discount_type.field.required %}required{% endif %}>
+                  <option value="">Select discount type</option>
+                  {% for value, label in form.discount_type.field.choices %}
+                    <option value="{{ value }}" {% if value == form.discount_type.value %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+                {{ form.discount_type.errors }}
+              </div>
+              <div class="mb-3">
+                {{ form.start_date.label_tag }}
+                {{ form.start_date|add_class:"form-control" }}
+                {{ form.start_date.errors }}
+              </div>
+              <div class="mb-3">
+                <label for="{{ form.images.id_for_label }}" class="form-label">{{ form.images.label }}</label>
+                <input type="file" class="form-control" id="{{ form.images.id_for_label }}" name="{{ form.images.name }}" multiple>
+                {{ form.images.errors }}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card-footer text-end">
+          <button type="submit" class="btn btn-primary">Add Product</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 {% endblock %}

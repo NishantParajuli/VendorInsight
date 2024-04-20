@@ -1,0 +1,311 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container">
+    <h2 class="text-center mb-4">Vendor Analytics</h2>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h4 class="card-title">Sales Predictions</h4>
+                    <div class="row">
+                        {% for category, data in category_sales_predictions.items %}
+                            <div class="col-md-6">
+                                <div class="chart-item">
+                                    <h5>{{ category }}</h5>
+                                    <canvas id="salesChart_{{ category }}"></canvas>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h4 class="card-title">Overall Vendor Sentiment</h4>
+                    <canvas id="overallSentimentChart"></canvas>
+                    <button id="detailsButton" class="btn btn-primary mt-3">Details</button>
+                    <div id="productSentimentDetails" class="mt-3" style="display: none;">
+                        <div class="row">
+                            {% for product in product_sentiment_data %}
+                                {% if product.sadness > 0 or product.joy > 0 or product.love > 0 or product.anger > 0 or product.fear > 0 or product.surprise > 0 %}
+                                    <div class="col-md-6">
+                                        <div class="card mb-3">
+                                            <div class="card-body">
+                                                <h5 class="card-title">{{ product.name }}</h5>
+                                                <canvas id="productSentimentChart_{{ product.id }}"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h4 class="card-title">Customer Segmentation</h4>
+                    <canvas id="clusterChart"></canvas>
+                    <table class="table mt-3">
+                        <thead>
+                            <tr>
+                                <th>Cluster</th>
+                                <th>Average Age</th>
+                                <th>Average Total Order</th>
+                                <th>Average Order Frequency</th>
+                                <th>Average Gender</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cluster in cluster_averages %}
+                            <tr>
+                                <td>{{ cluster.cluster }}</td>
+                                <td>{{ cluster.age|floatformat:2 }}</td>
+                                <td>{{ cluster.total_order_amount|floatformat:2 }}</td>
+                                <td>{{ cluster.order_frequency|floatformat:2 }}</td>
+                                <td>{{ cluster.gender }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <h4 class="card-title">Inventory Management</h4>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Current Stock</th>
+                                <th>Safety Stock Level</th>
+                                <th>Reorder Point</th>
+                                <th>Future Predictions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in page_obj %}
+                            <tr>
+                                <td>{{ item.product_name }}</td>
+                                <td>{{ item.current_stock }}</td>
+                                <td>{{ item.safety_stock_level }}</td>
+                                <td>{{ item.reorder_point }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-info" onclick="showPredictions({{ item.product_id }})">
+                                        View
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr id="predictions-{{ item.product_id }}" style="display: none;">
+                                <td colspan="5">
+                                    <h5>Future Predictions:</h5>
+                                    <ul>
+                                        {% for prediction in item.future_predictions %}
+                                        <li>{{ prediction }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination justify-content-center">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page=1">&laquo; First</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a>
+                                </li>
+                            {% endif %}
+
+                            <li class="page-item disabled">
+                                <span class="page-link">
+                                    Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+                                </span>
+                            </li>
+
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last &raquo;</a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+
+    function showPredictions(productId) {
+        var predictionsRow = document.getElementById('predictions-' + productId);
+        if (predictionsRow.style.display === 'none') {
+            predictionsRow.style.display = 'table-row';
+        } else {
+            predictionsRow.style.display = 'none';
+        }
+    }
+
+    // Sales prediction charts for each category
+    {% for category, data in category_sales_predictions.items %}
+        var salesDates_{{ category }} = {{ data.dates|safe }};
+        var salesPredictions_{{ category }} = {{ data.predictions|safe }};
+        var salesChart_{{ category }} = new Chart(document.getElementById('salesChart_{{ category }}'), {
+            type: 'line',
+            data: {
+                labels: salesDates_{{ category }},
+                datasets: [{
+                    label: 'Sales Predictions for {{ category }}',
+                    data: salesPredictions_{{ category }},
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    {% endfor %}
+
+    var overallSentimentData = [
+        {% for sentiment in overall_sentiment_counts %}
+            {{ sentiment.total }},
+        {% endfor %}
+    ];
+
+    var overallSentimentLabels = [
+        {% for sentiment in overall_sentiment_counts %}
+            '{{ sentiment.sentiment }}',
+        {% endfor %}
+    ];
+
+    var overallSentimentChart = new Chart(document.getElementById('overallSentimentChart'), {
+        type: 'pie',
+        data: {
+            labels: overallSentimentLabels,
+            datasets: [{
+                data: overallSentimentData,
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.8)',
+                    'rgba(54, 162, 235, 0.8)',
+                    'rgba(255, 206, 86, 0.8)',
+                    'rgba(75, 192, 192, 0.8)',
+                    'rgba(153, 102, 255, 0.8)',
+                    'rgba(255, 159, 64, 0.8)'
+                ],
+                borderWidth: 1
+            }]
+        }
+    });
+
+    var detailsButton = document.getElementById('detailsButton');
+    var productSentimentDetails = document.getElementById('productSentimentDetails');
+
+    detailsButton.addEventListener('click', function() {
+        if (productSentimentDetails.style.display === 'none') {
+            productSentimentDetails.style.display = 'block';
+        } else {
+            productSentimentDetails.style.display = 'none';
+        }
+    });
+
+    {% for product in product_sentiment_data %}
+        {% if product.sadness > 0 or product.joy > 0 or product.love > 0 or product.anger > 0 or product.fear > 0 or product.surprise > 0 %}
+            var productSentimentData_{{ product.id }} = [
+                {{ product.sadness }},
+                {{ product.joy }},
+                {{ product.love }},
+                {{ product.anger }},
+                {{ product.fear }},
+                {{ product.surprise }}
+            ];
+
+            var productSentimentChart_{{ product.id }} = new Chart(document.getElementById('productSentimentChart_{{ product.id }}'), {
+                type: 'pie',
+                data: {
+                    labels: ['Sadness', 'Joy', 'Love', 'Anger', 'Fear', 'Surprise'],
+                    datasets: [{
+                        data: productSentimentData_{{ product.id }},
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.8)',
+                            'rgba(54, 162, 235, 0.8)',
+                            'rgba(255, 206, 86, 0.8)',
+                            'rgba(75, 192, 192, 0.8)',
+                            'rgba(153, 102, 255, 0.8)',
+                            'rgba(255, 159, 64, 0.8)'
+                        ],
+                        borderWidth: 1
+                    }]
+                }
+            });
+        {% endif %}
+    {% endfor %}
+
+    var clusterData = {{ customer_segmentation.data|safe }};
+    var clusterLabels = {{ customer_segmentation.clusters|safe }};
+
+    var clusterChart = new Chart(document.getElementById('clusterChart'), {
+        type: 'scatter',
+        data: {
+            datasets: clusterLabels.map(function(label) {
+                return {
+                    label: 'Cluster ' + label,
+                    data: clusterData.filter(function(customer) {
+                        return customer.cluster === label;
+                    }).map(function(customer) {
+                        return {
+                            x: customer.pca_x,
+                            y: customer.pca_y,
+                        };
+                    }),
+                    backgroundColor: getColor(label)
+                };
+            })
+        },
+        options: {
+            scales: {
+                x: {
+                    type: 'linear',
+                    position: 'bottom'
+                },
+                y: {
+                    type: 'linear',
+                    position: 'left'
+                },
+            }
+        }
+    });
+
+    function getColor(label) {
+        var colors = ['rgba(255, 99, 132, 0.8)', 'rgba(54, 162, 235, 0.8)', 'rgba(255, 206, 86, 0.8)', 'rgba(75, 192, 192, 0.8)'];
+        return colors[label];
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Order History</h2>
+    {% if orders %}
+        <div class="row">
+            {% for order in orders %}
+                <div class="col-md-12 mb-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Order #{{ order.id }} - {{ order.order_date }}</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>Total Amount: ${{ order.total_amount }}</p>
+                            <p>Status: {{ order.status }}</p>
+                            <h6>Products:</h6>
+                            <ul>
+                                {% for detail in order.orderdetails_set.all %}
+                                    <li>{{ detail.product.name }} - Quantity: {{ detail.quantity }}, Price: ${{ detail.price }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>No orders found.</p>
+    {% endif %}
+</div>
+{% endblock %}
