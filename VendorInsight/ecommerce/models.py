@@ -74,7 +74,7 @@ class Discount(models.Model):
         FIXED = 'Fixed', _('Fixed Value')
 
     discount_type = models.CharField(
-        max_length=50,
+        max_length=100,
         choices=DiscountType.choices,
         default=DiscountType.FIXED
     )

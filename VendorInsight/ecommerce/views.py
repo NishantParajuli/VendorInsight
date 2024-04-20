@@ -15,6 +15,8 @@ from decimal import InvalidOperation
 from .recommendation_engine import recommend_products, recommend_products_collaborative
 from django.core.exceptions import ValidationError
 from django import forms
+from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth import update_session_auth_hash
 import pandas as pd
 import numpy as np
 from pmdarima import auto_arima
@@ -552,6 +554,15 @@ def vendor_products(request):
                     request, 'Invalid price value. Please enter a valid decimal number.')
                 return redirect('vendor_products')
 
+            # Update product images
+            product_form = ProductForm(
+                request.POST, request.FILES, instance=product, user=vendor)
+            if product_form.is_valid():
+                product_form.save()
+                messages.success(request, 'Product updated successfully!')
+            else:
+                messages.error(request, 'Failed to update the product.')
+
             # Update inventory fields
             try:
                 product.inventory.current_stock = int(
@@ -648,18 +659,26 @@ def profile(request):
         user_form = UserUpdateForm(request.POST, instance=request.user)
         profile_form = ProfileUpdateForm(
             request.POST, instance=request.user.userprofile)
+        password_form = PasswordChangeForm(request.user, request.POST)
         if user_form.is_valid() and profile_form.is_valid():
             user_form.save()
             profile_form.save()
             messages.success(request, 'Your profile has been updated!')
             return redirect('profile')
+        if password_form.is_valid():
+            user = password_form.save()
+            update_session_auth_hash(request, user)
+            messages.success(request, 'Your password has been changed!')
+            return redirect('profile')
     else:
         user_form = UserUpdateForm(instance=request.user)
         profile_form = ProfileUpdateForm(instance=request.user.userprofile)
+        password_form = PasswordChangeForm(request.user)
 
     context = {
         'user_form': user_form,
         'profile_form': profile_form,
+        'password_form': password_form,
     }
     return render(request, 'ecommerce/profile.html', context)
 

@@ -2,6 +2,7 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from .models import UserProfile, Product, Category, Inventory, Discount, ProductImage, ProductReview
+from django.contrib.auth import get_user_model
 
 
 class UserRegisterForm(UserCreationForm):
@@ -69,6 +70,8 @@ class ProductForm(forms.ModelForm):
             self.fields['safety_stock_level'].initial = self.instance.inventory.safety_stock_level
             self.fields['reorder_point'].initial = self.instance.inventory.reorder_point
 
+            self.fields['images'].initial = self.instance.productimage_set.all()
+
             if self.instance.discount:
                 self.fields['discount_type'].initial = self.instance.discount.discount_type
                 self.fields['discount_value'].initial = self.instance.discount.discount_value
@@ -108,6 +111,9 @@ class ProductForm(forms.ModelForm):
                 self.save_m2m()  # Save many-to-many data for the form.
 
                 if 'images' in self.files:
+                    # Remove existing images
+                    self.instance.productimage_set.all().delete()
+                    # Add new images
                     for image in self.files.getlist('images'):
                         ProductImage.objects.create(
                             product=product, image=image)
@@ -134,11 +140,14 @@ class SalesFilterForm(forms.Form):
     range = forms.ChoiceField(choices=RANGE_CHOICES, required=False)
 
 
+User = get_user_model()
+
+
 class UserUpdateForm(forms.ModelForm):
     class Meta:
         model = User
         fields = ['username', 'email', 'first_name',
-                  'last_name',]
+                  'last_name', 'phone_number', 'address']
 
 
 class ProfileUpdateForm(forms.ModelForm):
