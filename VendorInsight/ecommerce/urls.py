@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import register, home, vendor_home, add_product, CustomLoginView, product_detail, add_to_cart, add_to_wishlist, cart, vendor_analytics, vendor_products, wishlist, profile, order_history
+from .views import register, home, vendor_home, add_product, CustomLoginView, product_detail, add_to_cart, add_to_wishlist, cart, vendor_analytics, vendor_products, wishlist, profile, order_history, vendor_order_status
 from django.contrib.auth.views import LogoutView
 
 urlpatterns = [
@@ -22,4 +22,5 @@ urlpatterns += [
     path('wishlist/', wishlist, name='wishlist'),
     path('profile/', profile, name='profile'),
     path('history/', order_history, name='order_history'),
+    path('vendor/order-status/', vendor_order_status, name='vendor_order_status'),
 ]

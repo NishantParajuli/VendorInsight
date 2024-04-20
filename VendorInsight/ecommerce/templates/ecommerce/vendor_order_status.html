@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Order Status</h2>
+
+<h3>Completed Orders</h3>
+{% include 'ecommerce/order_list.html' with orders=page_obj_completed %}
+
+<h3>Pending Orders</h3>
+{% include 'ecommerce/order_list.html' with orders=page_obj_pending %}
+
+<h3>Canceled Orders</h3>
+{% include 'ecommerce/order_list.html' with orders=page_obj_canceled %}
+
+{% endblock %}

@@ -673,3 +673,49 @@ def order_history(request):
     }
 
     return render(request, 'ecommerce/order_history.html', context)
+
+
+@login_required
+@vendor_required
+def vendor_order_status(request):
+    vendor = request.user
+    completed_orders = Order.objects.filter(
+        orderdetails__product__user=vendor, status='Completed').distinct().order_by('-order_date')
+    pending_orders = Order.objects.filter(
+        orderdetails__product__user=vendor, status='Pending').distinct().order_by('-order_date')
+    canceled_orders = Order.objects.filter(
+        orderdetails__product__user=vendor, status='Canceled').distinct().order_by('-order_date')
+
+    if request.method == 'POST':
+        order_id = request.POST.get('order_id')
+        action = request.POST.get('action')
+        order = get_object_or_404(
+            Order, id=order_id, orderdetails__product__user=vendor)
+
+        if action == 'complete':
+            order.status = 'Completed'
+            order.save()
+            messages.success(request, 'Order marked as completed!')
+        elif action == 'cancel':
+            order.status = 'Canceled'
+            order.save()
+            messages.success(request, 'Order canceled!')
+        elif action == 'delete':
+            order.delete()
+            messages.success(request, 'Order deleted!')
+
+    paginator_completed = Paginator(completed_orders, 10)
+    paginator_pending = Paginator(pending_orders, 10)
+    paginator_canceled = Paginator(canceled_orders, 10)
+
+    page_number = request.GET.get('page')
+    page_obj_completed = paginator_completed.get_page(page_number)
+    page_obj_pending = paginator_pending.get_page(page_number)
+    page_obj_canceled = paginator_canceled.get_page(page_number)
+
+    context = {
+        'page_obj_completed': page_obj_completed,
+        'page_obj_pending': page_obj_pending,
+        'page_obj_canceled': page_obj_canceled,
+    }
+    return render(request, 'ecommerce/vendor_order_status.html', context)

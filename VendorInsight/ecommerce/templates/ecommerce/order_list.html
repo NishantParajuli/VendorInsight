@@ -1,0 +1,38 @@
+{% for order in orders %}
+<div>
+    <p>Order ID: {{ order.id }}</p>
+    <p>Order Date: {{ order.order_date }}</p>
+    <p>Total Amount: {{ order.total_amount }}</p>
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="order_id" value="{{ order.id }}">
+        {% if order.status == 'Pending' %}
+        <button type="submit" name="action" value="complete">Complete</button>
+        <button type="submit" name="action" value="cancel">Cancel</button>
+        {% endif %}
+        <button type="submit" name="action" value="delete">Delete</button>
+    </form>
+</div>
+{% empty %}
+<p>No orders found.</p>
+{% endfor %}
+
+{% if orders.has_other_pages %}
+<div class="pagination">
+    {% if orders.has_previous %}
+    <a href="?page={{ orders.previous_page_number }}">&laquo; Previous</a>
+    {% endif %}
+
+    {% for i in orders.paginator.page_range %}
+    {% if orders.number == i %}
+    <span class="current-page">{{ i }}</span>
+    {% else %}
+    <a href="?page={{ i }}">{{ i }}</a>
+    {% endif %}
+    {% endfor %}
+
+    {% if orders.has_next %}
+    <a href="?page={{ orders.next_page_number }}">Next &raquo;</a>
+    {% endif %}
+</div>
+{% endif %}
