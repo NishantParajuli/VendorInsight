@@ -2,7 +2,10 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from .models import UserProfile, Product, Category, Inventory, Discount, ProductImage, ProductReview
+
+
 from django.contrib.auth import get_user_model
+User = get_user_model()
 
 
 class UserRegisterForm(UserCreationForm):
@@ -104,19 +107,20 @@ class ProductForm(forms.ModelForm):
                 )
                 discount.save()
 
-                product.inventory = inventory
-                product.discount = discount
-                product.save()
+            product.inventory = inventory
+            product.discount = discount
+            product.save()
 
-                self.save_m2m()  # Save many-to-many data for the form.
+            self.save_m2m()  # Save many-to-many data for the form.
 
-                if 'images' in self.files:
-                    # Remove existing images
-                    self.instance.productimage_set.all().delete()
-                    # Add new images
-                    for image in self.files.getlist('images'):
-                        ProductImage.objects.create(
-                            product=product, image=image)
+            if 'images' in self.files:
+                # Remove existing images
+                self.instance.productimage_set.all().delete()
+                # Add new images
+                for image in self.files.getlist('images'):
+                    ProductImage.objects.create(
+                        product=product, image=image)
+
         return product
 
 
@@ -138,9 +142,6 @@ class SalesFilterForm(forms.Form):
     )
 
     range = forms.ChoiceField(choices=RANGE_CHOICES, required=False)
-
-
-User = get_user_model()
 
 
 class UserUpdateForm(forms.ModelForm):

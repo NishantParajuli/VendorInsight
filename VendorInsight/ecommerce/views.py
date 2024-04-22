@@ -133,7 +133,7 @@ def add_product(request):
         if form.is_valid():
             form.save()
             messages.success(request, 'Product added successfully!')
-            return redirect('vendor_home')
+            return redirect('add_product')
     else:
         form = ProductForm(user=request.user)
     return render(request, 'ecommerce/add_product.html', {'form': form})
@@ -345,13 +345,106 @@ def vendor_analytics(request):
     vendor = request.user
     products = vendor.products.all()
 
-    # Customer segmentation using K-means
+    category_sales_cache_key = 'category_sales_predictions'
+    category_sales_predictions = cache.get(category_sales_cache_key)
+
+    if category_sales_predictions is None:
+        # Sales prediction using ARIMA
+        categories = Category.objects.all()
+        category_sales_predictions = {}
+
+        for category in categories:
+            order_details = OrderDetails.objects.filter(
+                product__categories=category)
+            sales_data = pd.DataFrame(list(order_details.values(
+                'order__order_date', 'price', 'quantity')))
+            sales_data['order__order_date'] = pd.to_datetime(
+                sales_data['order__order_date'])
+            sales_data['sales'] = sales_data['price'] * sales_data['quantity']
+            ts_data = sales_data.groupby(pd.Grouper(key='order__order_date', freq='D'))[
+                'sales'].sum()
+
+            ts_data_log = np.log(ts_data.astype(float) + 1)
+            model = auto_arima(ts_data_log, seasonal=True,
+                               m=12, suppress_warnings=True)
+
+            last_date = ts_data.index[-1]
+            future_dates_sales = pd.date_range(
+                start=last_date + pd.Timedelta(days=1), periods=30, freq='D')
+            future_predictions_sales = np.exp(
+                model.predict(n_periods=len(future_dates_sales)))
+
+            category_sales_predictions[category.name] = {
+                'dates': future_dates_sales.strftime('%Y-%m-%d').tolist(),
+                'predictions': future_predictions_sales.tolist()
+            }
+
+        cache.set(category_sales_cache_key,
+                  category_sales_predictions, timeout=86400)
+
+    if not products.exists():
+        context = {
+            'no_products': True,
+            'category_sales_predictions': category_sales_predictions,
+        }
+        return render(request, 'ecommerce/vendor_analytics.html', context)
+
+    inventory_cache_key = f'vendor_inventory_{request.user.id}'
+    inventory_data = cache.get(inventory_cache_key)
+
+    if inventory_data is None:
+        # Inventory prediction using XGBoost
+        inventory_data = []
+        for product in products:
+            daily_sales = pd.DataFrame(list(OrderDetails.objects.filter(
+                product=product).values('order__order_date', 'quantity')))
+            daily_sales['order__order_date'] = pd.to_datetime(
+                daily_sales['order__order_date'])
+            daily_sales['day_of_week'] = daily_sales['order__order_date'].dt.dayofweek
+            daily_sales['month'] = daily_sales['order__order_date'].dt.month
+
+            X = daily_sales[['day_of_week', 'month']]
+            y = daily_sales['quantity']
+
+            xgb_model = XGBRegressor(objective='reg:squarederror',
+                                     n_estimators=100, learning_rate=0.1, random_state=42)
+            xgb_model.fit(X, y)
+
+            future_dates = pd.date_range(start=daily_sales['order__order_date'].max(
+            ) + pd.Timedelta(days=1), periods=7, freq='D')
+            future_data = pd.DataFrame({
+                'day_of_week': future_dates.dayofweek,
+                'month': future_dates.month
+            })
+            future_predictions = xgb_model.predict(future_data)
+            future_predictions = [
+                int(np.ceil(prediction)) + 1 for prediction in future_predictions]
+
+            inventory_data.append({
+                'product_id': product.id,
+                'product_name': product.name,
+                'current_stock': product.inventory.current_stock,
+                'safety_stock_level': product.inventory.safety_stock_level,
+                'reorder_point': product.inventory.reorder_point,
+                'future_predictions': future_predictions,
+            })
+
+        cache.set(inventory_cache_key, inventory_data, timeout=86400)
+
     customer_orders = Order.objects.filter(orderdetails__product__user=vendor).values('user').annotate(
         total_spent=Sum(F('orderdetails__price') *
                         F('orderdetails__quantity')),
         order_count=Count('id')
     )
 
+    if not customer_orders.exists():
+        context = {
+            'no_orders': True,
+            'category_sales_predictions': category_sales_predictions,
+        }
+        return render(request, 'ecommerce/vendor_analytics.html', context)
+
+    # Customer segmentation using K-means
     customer_data = []
     for order in customer_orders:
         user = User.objects.get(id=order['user'])
@@ -396,100 +489,6 @@ def vendor_analytics(request):
         'most_ordered_category': lambda x: x.mode()[0]
     }).reset_index()
 
-    cache_key = f'vendor_analytics_{request.user.id}'
-
-    analytics_data = cache.get(cache_key)
-
-    if analytics_data is None:
-        # Sales prediction using ARIMA
-        categories = Category.objects.all()
-        category_sales_predictions = {}
-
-        for category in categories:
-            order_details = OrderDetails.objects.filter(
-                product__categories=category)
-            sales_data = pd.DataFrame(list(order_details.values(
-                'order__order_date', 'price', 'quantity')))
-            sales_data['order__order_date'] = pd.to_datetime(
-                sales_data['order__order_date'])
-            sales_data['sales'] = sales_data['price'] * sales_data['quantity']
-            ts_data = sales_data.groupby(pd.Grouper(key='order__order_date', freq='D'))[
-                'sales'].sum()
-
-            ts_data_log = np.log(ts_data.astype(float) + 1)
-            model = auto_arima(ts_data_log, seasonal=True,
-                               m=12, suppress_warnings=True)
-
-            last_date = ts_data.index[-1]
-            future_dates_sales = pd.date_range(
-                start=last_date + pd.Timedelta(days=1), periods=30, freq='D')
-            future_predictions_sales = np.exp(
-                model.predict(n_periods=len(future_dates_sales)))
-
-            category_sales_predictions[category.name] = {
-                'dates': future_dates_sales.strftime('%Y-%m-%d').tolist(),
-                'predictions': future_predictions_sales.tolist()
-            }
-
-        # Inventory prediction using XGBoost
-        inventory_data = []
-        for product in products:
-            daily_sales = pd.DataFrame(list(OrderDetails.objects.filter(
-                product=product).values('order__order_date', 'quantity')))
-            daily_sales['order__order_date'] = pd.to_datetime(
-                daily_sales['order__order_date'])
-            daily_sales['day_of_week'] = daily_sales['order__order_date'].dt.dayofweek
-            daily_sales['month'] = daily_sales['order__order_date'].dt.month
-
-            X = daily_sales[['day_of_week', 'month']]
-            y = daily_sales['quantity']
-
-            xgb_model = XGBRegressor(objective='reg:squarederror',
-                                     n_estimators=100, learning_rate=0.1, random_state=42)
-            xgb_model.fit(X, y)
-
-            future_dates = pd.date_range(start=daily_sales['order__order_date'].max(
-            ) + pd.Timedelta(days=1), periods=7, freq='D')
-            future_data = pd.DataFrame({
-                'day_of_week': future_dates.dayofweek,
-                'month': future_dates.month
-            })
-            future_predictions = xgb_model.predict(future_data)
-            future_predictions = [
-                int(np.ceil(prediction)) + 1 for prediction in future_predictions]
-
-            inventory_data.append({
-                'product_id': product.id,
-                'product_name': product.name,
-                'current_stock': product.inventory.current_stock,
-                'safety_stock_level': product.inventory.safety_stock_level,
-                'reorder_point': product.inventory.reorder_point,
-                'future_predictions': future_predictions,
-            })
-
-            analytics_data = {
-                'inventory_data': inventory_data,
-                'category_sales_predictions': category_sales_predictions,
-            }
-
-            cache.set(cache_key, analytics_data, timeout=86400)
-
-    # Show 10 products per page
-    paginator = Paginator(analytics_data['inventory_data'], 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
-    context = {
-        'customer_segmentation': {
-            'data': features_df[['pca_x', 'pca_y', 'cluster']].to_dict(orient='records'),
-            'clusters': features_df['cluster'].unique().tolist()
-        },
-        'inventory_data': analytics_data['inventory_data'],
-        'category_sales_predictions': analytics_data['category_sales_predictions'],
-        'cluster_averages': cluster_averages.to_dict(orient='records'),
-        'page_obj': page_obj,
-    }
-
     # Aggregate sentiment data for each product
     product_sentiment_data = Product.objects.filter(user=request.user).annotate(
         sadness=Count('productreview', filter=Q(
@@ -507,10 +506,28 @@ def vendor_analytics(request):
     overall_sentiment_counts = ProductReview.objects.filter(
         product__user=request.user).values('sentiment').annotate(total=Count('sentiment'))
 
-    context.update({
+    if not product_sentiment_data.exists() and not overall_sentiment_counts.exists():
+        context.update({
+            'no_sentiment_data': True,
+        })
+
+    # Show 10 products per page
+    paginator = Paginator(inventory_data, 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'customer_segmentation': {
+            'data': features_df[['pca_x', 'pca_y', 'cluster']].to_dict(orient='records'),
+            'clusters': features_df['cluster'].unique().tolist()
+        },
+        'inventory_data': inventory_data,
+        'category_sales_predictions': category_sales_predictions,
+        'cluster_averages': cluster_averages.to_dict(orient='records'),
+        'page_obj': page_obj,
         'product_sentiment_data': product_sentiment_data,
         'overall_sentiment_counts': overall_sentiment_counts,
-    })
+    }
 
     return render(request, 'ecommerce/vendor_analytics.html', context)
 
@@ -655,21 +672,31 @@ def wishlist(request):
 
 @login_required
 def profile(request):
+    user_form = None
+    profile_form = None
+    password_form = None
+
     if request.method == 'POST':
-        user_form = UserUpdateForm(request.POST, instance=request.user)
-        profile_form = ProfileUpdateForm(
-            request.POST, instance=request.user.userprofile)
-        password_form = PasswordChangeForm(request.user, request.POST)
-        if user_form.is_valid() and profile_form.is_valid():
-            user_form.save()
-            profile_form.save()
-            messages.success(request, 'Your profile has been updated!')
-            return redirect('profile')
-        if password_form.is_valid():
-            user = password_form.save()
-            update_session_auth_hash(request, user)
-            messages.success(request, 'Your password has been changed!')
-            return redirect('profile')
+        if 'change_password' in request.POST:
+            password_form = PasswordChangeForm(request.user, request.POST)
+            if password_form.is_valid():
+                password_form.save()
+                update_session_auth_hash(request, password_form.user)
+                messages.success(request, 'Your password has been changed!')
+                return redirect('profile')
+            else:
+                messages.error(request, 'Please correct the errors.')
+        else:
+            user_form = UserUpdateForm(request.POST, instance=request.user)
+            profile_form = ProfileUpdateForm(
+                request.POST, instance=request.user.userprofile)
+            if user_form.is_valid() and profile_form.is_valid():
+                user_form.save()
+                profile_form.save()
+                messages.success(request, 'Your profile has been updated!')
+                return redirect('profile')
+            else:
+                messages.error(request, 'Please correct the errors.')
     else:
         user_form = UserUpdateForm(instance=request.user)
         profile_form = ProfileUpdateForm(instance=request.user.userprofile)
