@@ -6,6 +6,24 @@
     <title>{% block title %}VendorInsight{% endblock title %}</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"/>
     {% block css_files %}{% endblock css_files %}
+    <style>
+        .stars {
+            display: inline-block;
+        }
+        .star {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            background-color: #ccc;
+            clip-path: polygon(50% 0%, 63% 38%, 100% 38%, 69% 59%, 82% 100%, 50% 75%, 18% 100%, 31% 59%, 0% 38%, 37% 38%);
+        }
+        .star.gold {
+            background-color: gold;
+        }
+        .no-reviews {
+            color: #999;
+        }
+    </style>
 </head>
 <body>
     {% include 'navbar.html' %}

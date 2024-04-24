@@ -3,7 +3,7 @@ from django.contrib.auth import login, authenticate
 from django.contrib.auth.decorators import login_required
 from .forms import UserRegisterForm, ProductForm, ReviewForm, SalesFilterForm, UserUpdateForm, ProfileUpdateForm
 from django.contrib import messages
-from .models import UserProfile, Product, Category, ProductReview, Cart, CartItem, Wishlist, Order, OrderDetails, User, Discount, UserInteraction
+from .models import UserProfile, Product, Category, ProductReview, Cart, CartItem, Wishlist, Order, OrderDetails, User, Discount, UserInteraction, ProductImage, Inventory
 from django.http import HttpResponseForbidden
 from django.db.models import Q, Sum, F
 from django.contrib.auth.views import LoginView
@@ -24,6 +24,7 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.cluster import KMeans
 from xgboost import XGBRegressor
+from django.db import IntegrityError
 from django.db.models import Count
 from django.core.cache import cache
 from sklearn.decomposition import PCA
@@ -131,11 +132,58 @@ def add_product(request):
     if request.method == 'POST':
         form = ProductForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
-            form.save()
-            messages.success(request, 'Product added successfully!')
-            return redirect('add_product')
+            try:
+                product = form.save(commit=False)
+                if product.price < 0:
+                    raise ValueError("Price cannot be negative.")
+
+                current_stock = form.cleaned_data['current_stock']
+                safety_stock_level = form.cleaned_data['safety_stock_level']
+                reorder_point = form.cleaned_data['reorder_point']
+
+                if current_stock < 0 or safety_stock_level < 0 or reorder_point < 0:
+                    raise ValueError("Inventory values cannot be negative.")
+
+                inventory = Inventory(
+                    current_stock=current_stock,
+                    safety_stock_level=safety_stock_level,
+                    reorder_point=reorder_point
+                )
+                inventory.save()
+                product.inventory = inventory
+
+                discount_type = form.cleaned_data['discount_type']
+                if discount_type:
+                    discount_value = form.cleaned_data['discount_value']
+                    if discount_value < 0:
+                        raise ValueError("Discount value cannot be negative.")
+
+                    discount = Discount(
+                        discount_type=discount_type,
+                        discount_value=discount_value,
+                        start_date=form.cleaned_data['start_date'],
+                        end_date=form.cleaned_data['end_date']
+                    )
+                    discount.save()
+                    product.discount = discount
+
+                product.save()
+
+                if 'images' in request.FILES:
+                    for image in request.FILES.getlist('images'):
+                        ProductImage.objects.create(
+                            product=product, image=image)
+
+                messages.success(request, 'Product added successfully!')
+                return redirect('add_product')
+            except ValueError as e:
+                messages.error(request, str(e))
+            except IntegrityError:
+                messages.error(
+                    request, 'Inventory values violate constraints. Please enter valid values.')
     else:
         form = ProductForm(user=request.user)
+
     return render(request, 'ecommerce/add_product.html', {'form': form})
 
 
@@ -190,6 +238,17 @@ def add_to_cart(request, product_id):
     product = get_object_or_404(Product, pk=product_id)
     quantity = int(request.POST.get('quantity', 1))
 
+    # Check if the requested quantity is negative
+    if quantity <= 0:
+        messages.error(
+            request, 'Invalid quantity. Please enter a positive value.')
+        return redirect('product_detail', product_id=product.id)
+
+    if quantity > product.inventory.current_stock:
+        messages.error(
+            request, 'Insufficient stock. Please choose a lower quantity.')
+        return redirect('product_detail', product_id=product.id)
+
     cart, _ = Cart.objects.get_or_create(user=request.user)
     cart_item, created = CartItem.objects.get_or_create(
         cart=cart, product=product)
@@ -204,6 +263,15 @@ def add_to_cart(request, product_id):
 
     product.inventory.current_stock -= quantity
     product.inventory.save()
+
+    # Check if the updated stock is negative
+    if product.inventory.current_stock < 0:
+        messages.error(
+            request, 'Insufficient stock. The product could not be added to the cart.')
+        product.inventory.current_stock += quantity  # Revert the stock update
+        product.inventory.save()
+        cart_item.delete()  # Remove the cart item
+        return redirect('product_detail', product_id=product.id)
 
     messages.success(request, 'Product added to cart!')
     return redirect('product_detail', product_id=product.id)
@@ -224,8 +292,22 @@ def add_to_wishlist(request, product_id):
 def cart(request):
     cart = Cart.objects.filter(user=request.user).first()
     cart_items = CartItem.objects.filter(cart=cart)
-    total_price = sum(item.product.price *
-                      item.quantity for item in cart_items)
+    # Calculate the total price and discounted price for each cart item
+    for item in cart_items:
+        product = item.product
+        item.original_price = product.price * item.quantity
+        if product.discount and product.discount.start_date <= timezone.now() <= product.discount.end_date:
+            if product.discount.discount_type == Discount.DiscountType.PERCENTAGE:
+                item.discounted_price = item.original_price * \
+                    (1 - product.discount.discount_value / 100)
+            else:
+                item.discounted_price = item.original_price - product.discount.discount_value
+        else:
+            item.discounted_price = item.original_price
+
+    total_original_price = sum(item.original_price for item in cart_items)
+    total_discounted_price = sum(item.discounted_price for item in cart_items)
+    total_discount = total_original_price - total_discounted_price
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -233,7 +315,7 @@ def cart(request):
             # Process the order
             order = Order.objects.create(
                 user=request.user,
-                total_amount=total_price,
+                total_amount=total_discounted_price,
                 order_date=timezone.now(),  # Set the current date and time as the order date
                 status='Pending')  # Set the initial status of the order
             for item in cart_items:
@@ -246,17 +328,26 @@ def cart(request):
             item_id = request.POST.get('item_id')
             cart_item = get_object_or_404(
                 CartItem, id=item_id, cart__user=request.user)
+            # Add the stock back to the product
+            cart_item.product.inventory.current_stock += cart_item.quantity
+            cart_item.product.inventory.save()
             cart_item.delete()
             messages.success(request, 'Item removed from cart!')
             return redirect('cart')
         elif action == 'clear_cart':
+            # Add the stock back to the respective products
+            for item in cart_items:
+                item.product.inventory.current_stock += item.quantity
+                item.product.inventory.save()
             cart_items.delete()
             messages.success(request, 'Cart cleared!')
             return redirect('cart')
 
     context = {
         'cart_items': cart_items,
-        'total_price': total_price,
+        'total_original_price': total_original_price,
+        'total_discounted_price': total_discounted_price,
+        'total_discount': total_discount,
     }
     return render(request, 'ecommerce/cart.html', context)
 
@@ -389,106 +480,6 @@ def vendor_analytics(request):
         }
         return render(request, 'ecommerce/vendor_analytics.html', context)
 
-    inventory_cache_key = f'vendor_inventory_{request.user.id}'
-    inventory_data = cache.get(inventory_cache_key)
-
-    if inventory_data is None:
-        # Inventory prediction using XGBoost
-        inventory_data = []
-        for product in products:
-            daily_sales = pd.DataFrame(list(OrderDetails.objects.filter(
-                product=product).values('order__order_date', 'quantity')))
-            daily_sales['order__order_date'] = pd.to_datetime(
-                daily_sales['order__order_date'])
-            daily_sales['day_of_week'] = daily_sales['order__order_date'].dt.dayofweek
-            daily_sales['month'] = daily_sales['order__order_date'].dt.month
-
-            X = daily_sales[['day_of_week', 'month']]
-            y = daily_sales['quantity']
-
-            xgb_model = XGBRegressor(objective='reg:squarederror',
-                                     n_estimators=100, learning_rate=0.1, random_state=42)
-            xgb_model.fit(X, y)
-
-            future_dates = pd.date_range(start=daily_sales['order__order_date'].max(
-            ) + pd.Timedelta(days=1), periods=7, freq='D')
-            future_data = pd.DataFrame({
-                'day_of_week': future_dates.dayofweek,
-                'month': future_dates.month
-            })
-            future_predictions = xgb_model.predict(future_data)
-            future_predictions = [
-                int(np.ceil(prediction)) + 1 for prediction in future_predictions]
-
-            inventory_data.append({
-                'product_id': product.id,
-                'product_name': product.name,
-                'current_stock': product.inventory.current_stock,
-                'safety_stock_level': product.inventory.safety_stock_level,
-                'reorder_point': product.inventory.reorder_point,
-                'future_predictions': future_predictions,
-            })
-
-        cache.set(inventory_cache_key, inventory_data, timeout=86400)
-
-    customer_orders = Order.objects.filter(orderdetails__product__user=vendor).values('user').annotate(
-        total_spent=Sum(F('orderdetails__price') *
-                        F('orderdetails__quantity')),
-        order_count=Count('id')
-    )
-
-    if not customer_orders.exists():
-        context = {
-            'no_orders': True,
-            'category_sales_predictions': category_sales_predictions,
-        }
-        return render(request, 'ecommerce/vendor_analytics.html', context)
-
-    # Customer segmentation using K-means
-    customer_data = []
-    for order in customer_orders:
-        user = User.objects.get(id=order['user'])
-        age = (timezone.now().date() -
-               user.userprofile.date_of_birth).days // 365
-        most_ordered_category = OrderDetails.objects.filter(order__user=user).values(
-            'product__categories__name').annotate(count=Count('id')).order_by('-count').first()['product__categories__name']
-        customer_data.append({
-            'user_id': user.id,
-            'age': age,
-            'total_order_amount': order['total_spent'],
-            'order_frequency': order['order_count'],
-            'gender': user.userprofile.gender,
-            'most_ordered_category': most_ordered_category
-        })
-
-    features_df = pd.DataFrame(customer_data)
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ('num', StandardScaler(), [
-             'age', 'total_order_amount', 'order_frequency']),
-            ('cat', OneHotEncoder(), ['gender', 'most_ordered_category'])
-        ])
-    X_processed = preprocessor.fit_transform(features_df)
-    X_processed = X_processed.toarray()  # Convert sparse matrix to dense matrix
-
-    kmeans = KMeans(n_clusters=4, random_state=42)
-    clusters = kmeans.fit_predict(X_processed)
-    features_df['cluster'] = clusters
-
-    # Perform PCA for 2D visualization
-    pca = PCA(n_components=3)
-    X_pca = pca.fit_transform(X_processed)
-    features_df['pca_x'] = X_pca[:, 0]
-    features_df['pca_y'] = X_pca[:, 1]
-
-    cluster_averages = features_df.groupby('cluster').agg({
-        'age': 'mean',
-        'total_order_amount': 'mean',
-        'order_frequency': 'mean',
-        'gender': lambda x: x.mode()[0],
-        'most_ordered_category': lambda x: x.mode()[0]
-    }).reset_index()
-
     # Aggregate sentiment data for each product
     product_sentiment_data = Product.objects.filter(user=request.user).annotate(
         sadness=Count('productreview', filter=Q(
@@ -511,19 +502,141 @@ def vendor_analytics(request):
             'no_sentiment_data': True,
         })
 
+    customer_orders = Order.objects.filter(orderdetails__product__user=vendor).values('user').annotate(
+        total_spent=Sum(F('orderdetails__price') *
+                        F('orderdetails__quantity')),
+        order_count=Count('id')
+    )
+
+    if not customer_orders.exists():
+        context = {
+            'no_orders': True,
+            'category_sales_predictions': category_sales_predictions,
+        }
+        return render(request, 'ecommerce/vendor_analytics.html', context)
+
+    inventory_cache_key = f'vendor_inventory_{request.user.id}'
+    inventory_data = cache.get(inventory_cache_key)
+
+    if inventory_data is None:
+        # Inventory prediction using XGBoost
+        inventory_data = []
+        for product in products:
+            daily_sales = pd.DataFrame(list(OrderDetails.objects.filter(
+                product=product).values('order__order_date', 'quantity')))
+
+            if not daily_sales.empty:
+                daily_sales['order__order_date'] = pd.to_datetime(
+                    daily_sales['order__order_date'])
+                daily_sales['day_of_week'] = daily_sales['order__order_date'].dt.dayofweek
+                daily_sales['month'] = daily_sales['order__order_date'].dt.month
+
+                X = daily_sales[['day_of_week', 'month']]
+                y = daily_sales['quantity']
+
+                xgb_model = XGBRegressor(
+                    objective='reg:squarederror', n_estimators=100, learning_rate=0.1, random_state=42)
+                xgb_model.fit(X, y)
+
+                future_dates = pd.date_range(start=daily_sales['order__order_date'].max(
+                ) + pd.Timedelta(days=1), periods=7, freq='D')
+                future_data = pd.DataFrame({
+                    'day_of_week': future_dates.dayofweek,
+                    'month': future_dates.month
+                })
+                future_predictions = xgb_model.predict(future_data)
+                future_predictions = [
+                    int(np.ceil(prediction)) + 1 for prediction in future_predictions]
+
+                average_prediction = sum(
+                    future_predictions) / len(future_predictions)
+            else:
+                # Set future predictions to 0 if no sales data available
+                future_predictions = [0] * 7
+                average_prediction = 0
+
+            inventory_data.append({
+                'product_id': product.id,
+                'product_name': product.name,
+                'current_stock': product.inventory.current_stock,
+                'safety_stock_level': product.inventory.safety_stock_level,
+                'reorder_point': product.inventory.reorder_point,
+                'future_predictions': future_predictions,
+                'average_prediction': average_prediction,
+                'warning': product.inventory.current_stock <= average_prediction + 5,
+                'urgent_warning': product.inventory.current_stock <= average_prediction,
+            })
+
+        cache.set(inventory_cache_key, inventory_data, timeout=86400)
+
+    unique_customers = customer_orders.values('user').distinct().count()
+
+    # Customer segmentation using K-means
+    if unique_customers >= 10:
+        customer_data = []
+        for order in customer_orders:
+            user = User.objects.get(id=order['user'])
+            age = (timezone.now().date() -
+                   user.userprofile.date_of_birth).days // 365
+            most_ordered_category = OrderDetails.objects.filter(order__user=user).values(
+                'product__categories__name').annotate(count=Count('id')).order_by('-count').first()['product__categories__name']
+            customer_data.append({
+                'user_id': user.id,
+                'age': age,
+                'total_order_amount': order['total_spent'],
+                'order_frequency': order['order_count'],
+                'gender': user.userprofile.gender,
+                'most_ordered_category': most_ordered_category
+            })
+
+        features_df = pd.DataFrame(customer_data)
+        preprocessor = ColumnTransformer(
+            transformers=[
+                ('num', StandardScaler(), [
+                    'age', 'total_order_amount', 'order_frequency']),
+                ('cat', OneHotEncoder(), ['gender', 'most_ordered_category'])
+            ])
+        X_processed = preprocessor.fit_transform(features_df)
+        X_processed = X_processed.toarray()  # Convert sparse matrix to dense matrix
+
+        kmeans = KMeans(n_clusters=4, random_state=42)
+        clusters = kmeans.fit_predict(X_processed)
+        features_df['cluster'] = clusters
+
+        # Perform PCA for 2D visualization
+        pca = PCA(n_components=3)
+        X_pca = pca.fit_transform(X_processed)
+        features_df['pca_x'] = X_pca[:, 0]
+        features_df['pca_y'] = X_pca[:, 1]
+
+        cluster_averages = features_df.groupby('cluster').agg({
+            'age': 'mean',
+            'total_order_amount': 'mean',
+            'order_frequency': 'mean',
+            'gender': lambda x: x.mode()[0],
+            'most_ordered_category': lambda x: x.mode()[0]
+        }).reset_index()
+
+        customer_segmentation = {
+            'data': features_df[['pca_x', 'pca_y', 'cluster']].to_dict(orient='records'),
+            'clusters': features_df['cluster'].unique().tolist()
+        }
+        cluster_averages = cluster_averages.to_dict(orient='records')
+
+    else:
+        customer_segmentation = None
+        cluster_averages = None
+
     # Show 10 products per page
     paginator = Paginator(inventory_data, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
     context = {
-        'customer_segmentation': {
-            'data': features_df[['pca_x', 'pca_y', 'cluster']].to_dict(orient='records'),
-            'clusters': features_df['cluster'].unique().tolist()
-        },
+        'customer_segmentation': customer_segmentation,
         'inventory_data': inventory_data,
         'category_sales_predictions': category_sales_predictions,
-        'cluster_averages': cluster_averages.to_dict(orient='records'),
+        'cluster_averages': cluster_averages,
         'page_obj': page_obj,
         'product_sentiment_data': product_sentiment_data,
         'overall_sentiment_counts': overall_sentiment_counts,
@@ -564,34 +677,44 @@ def vendor_products(request):
             product.description = request.POST.get('description')
             price_field = PriceField()
             try:
-                product.price = price_field.to_python(
-                    request.POST.get('price'))
-            except InvalidOperation:
+                price = price_field.to_python(request.POST.get('price'))
+                if price < 0:
+                    raise ValueError("Price cannot be negative.")
+                product.price = price
+            except (InvalidOperation, ValueError):
                 messages.error(
-                    request, 'Invalid price value. Please enter a valid decimal number.')
+                    request, 'Invalid price value. Please enter a valid non-negative decimal number.')
                 return redirect('vendor_products')
 
             # Update product images
-            product_form = ProductForm(
-                request.POST, request.FILES, instance=product, user=vendor)
-            if product_form.is_valid():
-                product_form.save()
-                messages.success(request, 'Product updated successfully!')
-            else:
-                messages.error(request, 'Failed to update the product.')
+            if 'images' in request.FILES:
+                # Remove existing images
+                product.productimage_set.all().delete()
+                # Add new images
+                for image in request.FILES.getlist('images'):
+                    ProductImage.objects.create(product=product, image=image)
 
             # Update inventory fields
             try:
-                product.inventory.current_stock = int(
-                    request.POST.get('current_stock'))
-                product.inventory.safety_stock_level = int(
+                current_stock = int(request.POST.get('current_stock'))
+                safety_stock_level = int(
                     request.POST.get('safety_stock_level'))
-                product.inventory.reorder_point = int(
-                    request.POST.get('reorder_point'))
+                reorder_point = int(request.POST.get('reorder_point'))
+
+                if current_stock < 0 or safety_stock_level < 0 or reorder_point < 0:
+                    raise ValueError("Inventory values cannot be negative.")
+
+                product.inventory.current_stock = current_stock
+                product.inventory.safety_stock_level = safety_stock_level
+                product.inventory.reorder_point = reorder_point
                 product.inventory.save()
             except ValueError:
                 messages.error(
-                    request, 'Invalid inventory values. Please enter valid integers.')
+                    request, 'Invalid inventory values. Please enter valid non-negative integers.')
+                return redirect('vendor_products')
+            except IntegrityError:
+                messages.error(
+                    request, 'Inventory values violate constraints. Please enter valid values.')
                 return redirect('vendor_products')
 
             # Update discount fields
@@ -735,8 +858,8 @@ def vendor_order_status(request):
     if request.method == 'POST':
         order_id = request.POST.get('order_id')
         action = request.POST.get('action')
-        order = get_object_or_404(
-            Order, id=order_id, orderdetails__product__user=vendor)
+        order = Order.objects.filter(
+            id=order_id, orderdetails__product__user=vendor).first()
 
         if action == 'complete':
             order.status = 'Completed'

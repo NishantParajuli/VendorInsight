@@ -92,8 +92,7 @@ class Command(BaseCommand):
                     'safety_stock_level': int(float(row['corrected_stock']) * 0.2),
                     'reorder_point': int(float(row['corrected_stock']) * 0.1),
                 }
-                inventory, _ = Inventory.objects.get_or_create(
-                    **inventory_defaults)
+                inventory = Inventory.objects.create(**inventory_defaults)
 
                 # Create the Discount instance
                 discount_defaults = {
@@ -102,8 +101,7 @@ class Command(BaseCommand):
                     'start_date': timezone.now(),
                     'end_date': timezone.now() + timedelta(days=1),
                 }
-                discount, _ = Discount.objects.get_or_create(
-                    **discount_defaults)
+                discount = Discount.objects.create(**discount_defaults)
 
                 additional_views = int(float(row['Quantity']))
 

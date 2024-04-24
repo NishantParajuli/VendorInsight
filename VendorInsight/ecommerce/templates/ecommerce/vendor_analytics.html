@@ -113,7 +113,14 @@
                                     {% for item in page_obj %}
                                     <tr>
                                         <td>{{ item.product_name }}</td>
-                                        <td>{{ item.current_stock }}</td>
+                                        <td>
+                                            {{ item.current_stock }}
+                                            {% if item.urgent_warning %}
+                                                <span class="text-danger font-weight-bold">Urgent Warning</span>
+                                            {% elif item.warning %}
+                                                <span class="text-warning font-weight-bold">Warning</span>
+                                            {% endif %}
+                                        </td>
                                         <td>{{ item.safety_stock_level }}</td>
                                         <td>{{ item.reorder_point }}</td>
                                         <td>
@@ -124,12 +131,15 @@
                                     </tr>
                                     <tr id="predictions-{{ item.product_id }}" style="display: none;">
                                         <td colspan="5">
-                                            <h5>Future Predictions:</h5>
-                                            <ul>
+                                            <div class="future-predictions">
+                                                <h5>Future Predictions:</h5>
                                                 {% for prediction in item.future_predictions %}
-                                                <li>{{ prediction }}</li>
+                                                    <p>
+                                                        <strong>Day {{ forloop.counter }}:</strong>
+                                                        Expected Stock Bought: {{ prediction }}
+                                                    </p>
                                                 {% endfor %}
-                                            </ul>
+                                            </div>
                                         </td>
                                     </tr>
                                     {% endfor %}

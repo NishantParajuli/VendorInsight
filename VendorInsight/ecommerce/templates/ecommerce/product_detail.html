@@ -1,73 +1,130 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-6">
-        <img src="{% if product.productimage_set.first %}{{ product.productimage_set.first.image.url }}{% endif %}" class="img-fluid" alt="{{ product.name }}">
-    </div>
-    <div class="col-md-6">
-        <h2>{{ product.name }}</h2>
-        <p>{{ product.description }}</p>
-        <p>Price: ${{ product.price }}</p>
-        <form method="post" action="{% url 'add_to_cart' product.id %}">
-            {% csrf_token %}
-            <div class="form-group">
-                <label for="quantity">Quantity:</label>
-                <input type="number" name="quantity" value="1" min="1" required class="form-control">
-            </div>
-            <button type="submit" class="btn btn-primary">Add to Cart</button>
-        </form>
-        <form method="post" action="{% url 'add_to_wishlist' product.id %}" class="mt-2">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-secondary">Add to Wishlist</button>
-        </form>
-    </div>
-</div>
-<hr>
-<div class="row">
-    <div class="col">
-        <h3>Reviews</h3>
-        {% for review in reviews %}
-        <div class="card mb-3">
-            <div class="card-body">
-                <h5 class="card-title">Reviewer: {{ review.user.first_name }}</h5>
-                <p class="card-text">Rating: {{ review.rating }}</p>
-                <p class="card-text">Comment: {{ review.comment }}</p>
-            </div>
+{% if messages %}
+    <div class="messages">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">
+          {{ message }}
         </div>
-        {% empty %}
-        <p>No reviews yet.</p>
-        {% endfor %}
-        <h4>Add a Review</h4>
-        <form method="post">
-            {% csrf_token %}
-            {{ review_form.as_p }}
-            <button type="submit" class="btn btn-primary">Submit Review</button>
-        </form>
+      {% endfor %}
     </div>
-</div>
-<hr>
-<div class="row">
-    <div class="col">
-        <h3>Recommended Products</h3>
-        <div class="row">
-            {% for product in recommended_products %}
-            <div class="col-md-4 mb-4">
-                <div class="card">
-                    <img src="{% if product.productimage_set.first %}{{ product.productimage_set.first.image.url }}{% endif %}" class="card-img-top" alt="{{ product.name }}">
-                    <div class="card-body">
-                        <h5 class="card-title">{{ product.name }}</h5>
-                        <p class="card-text">{{ product.description }}</p>
-                        <a href="{% url 'product_detail' product.id %}" class="btn btn-primary">View Product</a>
-                    </div>
+{% endif %}
+<div class="container my-4">
+    <div class="row">
+        <div class="col-md-6">
+            <img src="{% if product.productimage_set.first %}{{ product.productimage_set.first.image.url }}{% endif %}" class="img-fluid" alt="{{ product.name }}">
+        </div>
+        <div class="col-md-6">
+            <h2>{{ product.name }}</h2>
+            <p>{{ product.description }}</p>
+            <p>Price: ${{ product.price }}</p>
+            <form method="post" action="{% url 'add_to_cart' product.id %}">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="quantity">Quantity:</label>
+                    <input type="number" name="quantity" value="1" min="1" required class="form-control">
+                </div>
+                <button type="submit" class="btn btn-primary">Add to Cart</button>
+            </form>
+            <form method="post" action="{% url 'add_to_wishlist' product.id %}" class="mt-2">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-secondary">Add to Wishlist</button>
+            </form>
+        </div>
+    </div>
+    
+    <hr>
+
+    <div class="row">
+        <div class="col">
+            <h3>Reviews</h3>
+            {% for review in reviews %}
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Reviewer: {{ review.user.first_name }}</h5>
+                    <p class="card-text">
+                        Rating: {{ review.rating }}
+                    </p>
+                    <p class="card-text">Comment: {{ review.comment }}</p>
                 </div>
             </div>
             {% empty %}
-            <div class="col">
-                <p>No recommended products found.</p>
-            </div>
+            <p>No reviews yet.</p>
             {% endfor %}
+
+            <h4>Add a Review</h4>
+            <form method="post" class="needs-validation" novalidate>
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="id_rating">Rating:</label>
+                    <select name="rating" class="form-control" id="id_rating" required>
+                        <option value="" selected disabled>Select your rating</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                    </select>
+                    <div class="invalid-feedback">Please select a rating.</div>
+                </div>
+                <div class="form-group">
+                    <label for="id_comment">Comment:</label>
+                    <textarea name="comment" cols="40" rows="5" class="form-control" required id="id_comment"></textarea>
+                    <div class="invalid-feedback">Please enter a comment.</div>
+                </div>
+                <button type="submit" class="btn btn-primary">Submit Review</button>
+            </form>
+        </div>
+    </div>
+
+    <hr>
+
+    <div class="row">
+        <div class="col">
+            <h3>Recommended Products</h3>
+            <div class="row">
+                {% for product in recommended_products %}
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100">
+                        <img src="{% if product.productimage_set.first %}{{ product.productimage_set.first.image.url }}{% endif %}" class="card-img-top" alt="{{ product.name }}">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ product.name }}</h5>
+                            <p class="card-text">{{ product.description|truncatewords:20 }}</p>
+                            <a href="{% url 'product_detail' product.id %}" class="btn btn-primary">View Product</a>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="col">
+                    <p>No recommended products found.</p>
+                </div>
+                {% endfor %}
+            </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Example starter JavaScript for disabling form submissions if there are invalid fields
+    (function() {
+        'use strict';
+        window.addEventListener('load', function() {
+            // Fetch all the forms we want to apply custom Bootstrap validation styles to
+            var forms = document.getElementsByClassName('needs-validation');
+            // Loop over them and prevent submission
+            var validation = Array.prototype.filter.call(forms, function(form) {
+                form.addEventListener('submit', function(event) {
+                    if (form.checkValidity() === false) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    form.classList.add('was-validated');
+                }, false);
+            });
+        }, false);
+    })();
+</script>
 {% endblock %}
